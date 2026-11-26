@@ -14,6 +14,9 @@ interface ImpactCardProps {
   onToggle: (id: string) => void;
 }
 
+/**
+ * Recommendation card displaying health impact, emission savings, why-it-works, and adoption toggle.
+ */
 export function ImpactCard({
   id,
   badge,

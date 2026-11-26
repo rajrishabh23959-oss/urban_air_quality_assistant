@@ -19,5 +19,11 @@ describe("structured logger", () => {
 
     expect(stdoutSpy).toHaveBeenCalledTimes(2);
     expect(stderrSpy).toHaveBeenCalledTimes(2);
+
+    delete process.env.LOG_LEVEL;
+    vi.stubEnv("NODE_ENV", "production");
+    logger.info("prod info msg");
+    expect(stdoutSpy).toHaveBeenCalledTimes(3);
+    vi.unstubAllEnvs();
   });
 });

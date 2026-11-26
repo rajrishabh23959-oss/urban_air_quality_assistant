@@ -1,5 +1,8 @@
 import { Wind } from "lucide-react";
 
+/**
+ * Top application header with BreatheWise branding and section skip-navigation links.
+ */
 export function AppHeader() {
   return (
     <header className="border-b border-slate-200 bg-white">

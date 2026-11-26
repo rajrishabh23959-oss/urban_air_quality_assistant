@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AirQualitySnapshotSchema } from "./air-quality";
 import { HouseholdProfileSchema } from "./profile";
 
+/** Quantified health and emission impact metrics attached to every recommendation. */
 export const ImpactMetricsSchema = z
   .object({
     healthImpact: z.string().min(5).max(260),

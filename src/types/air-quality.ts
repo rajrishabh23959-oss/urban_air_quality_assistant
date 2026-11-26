@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+/** US AQI severity tier enum. */
 export const AqiTierSchema = z.enum([
   "good",
   "moderate",

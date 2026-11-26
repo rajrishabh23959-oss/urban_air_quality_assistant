@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { describe, expect, it, vi } from "vitest";
@@ -50,6 +50,14 @@ describe("ProfileForm", () => {
     rerender(<ProfileForm profile={{ ...MOCK_PROFILE, mode: "community" }} onChange={onChange} />);
     await user.selectOptions(screen.getByLabelText(/Community Scale/i), "100");
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ communityHouseholds: 100 }));
+
+    // Invalid select values are safely ignored by Zod guards
+    onChange.mockClear();
+    fireEvent.change(screen.getByLabelText(/Daily Commute/i), { target: { value: "invalid" } });
+    fireEvent.change(screen.getByLabelText(/Cooking Fuel/i), { target: { value: "invalid" } });
+    fireEvent.change(screen.getByLabelText(/Home Type/i), { target: { value: "invalid" } });
+    fireEvent.change(screen.getByLabelText(/Home Ventilation/i), { target: { value: "invalid" } });
+    expect(onChange).not.toHaveBeenCalled();
 
     const results = await axe(container);
     expect(results).toHaveNoViolations();

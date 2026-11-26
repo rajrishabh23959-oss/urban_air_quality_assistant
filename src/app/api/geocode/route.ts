@@ -1,53 +1,49 @@
-import { NextResponse } from "next/server";
 import { GeocodeQuerySchema } from "@/types";
-import { aqiRateLimiter, buildRateLimitHeaders, getClientIdentifier } from "@/lib/rate-limit";
+import { apiJson, checkApiRateLimit } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
+import { aqiRateLimiter } from "@/lib/rate-limit";
 import { searchCities, UpstreamServiceError } from "@/services/open-meteo";
 
+/**
+ * City geocoding lookup endpoint backed by Open-Meteo with 1-hour caching.
+ */
 export async function GET(request: Request) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = aqiRateLimiter.check(clientId);
-  const rateHeaders = buildRateLimitHeaders(rateLimit);
-
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many city search requests. Please wait a moment and try again." },
-      { status: 429, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
-    );
+  const rate = checkApiRateLimit(
+    request,
+    aqiRateLimiter,
+    "Too many city search requests. Please wait a moment and try again.",
+  );
+  if (!rate.allowed) {
+    return rate.response;
   }
 
   const { searchParams } = new URL(request.url);
-  const parsed = GeocodeQuerySchema.safeParse({
-    q: searchParams.get("q") ?? "",
-  });
-
+  const parsed = GeocodeQuerySchema.safeParse({ q: searchParams.get("q") ?? "" });
   if (!parsed.success) {
-    return NextResponse.json(
+    return apiJson(
       { error: "Invalid search query. Provide 2 to 80 characters." },
-      { status: 400, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
+      400,
+      rate.headers,
     );
   }
 
   try {
     const results = await searchCities(parsed.data.q);
-    return NextResponse.json(
+    return apiJson(
       { results },
-      {
-        status: 200,
-        headers: {
-          ...rateHeaders,
-          "Cache-Control": "public, max-age=300, stale-while-revalidate=60",
-        },
-      },
+      200,
+      rate.headers,
+      "public, max-age=300, stale-while-revalidate=60",
     );
   } catch (error) {
     logger.error("Geocode route error", {
       error: error instanceof Error ? error.message : "unknown",
     });
     const status = error instanceof UpstreamServiceError ? 502 : 500;
-    return NextResponse.json(
+    return apiJson(
       { error: "Unable to fetch city matches right now. Please try again." },
-      { status, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
+      status,
+      rate.headers,
     );
   }
 }

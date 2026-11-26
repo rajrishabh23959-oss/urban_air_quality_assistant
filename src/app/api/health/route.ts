@@ -1,26 +1,14 @@
-import { NextResponse } from "next/server";
-import { buildRateLimitHeaders, getClientIdentifier, healthRateLimiter } from "@/lib/rate-limit";
+import { apiJson, checkApiRateLimit } from "@/lib/api-response";
+import { healthRateLimiter } from "@/lib/rate-limit";
 
+/**
+ * Health check endpoint with lightweight sliding-window rate limiting.
+ */
 export async function GET(request: Request) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = healthRateLimiter.check(clientId);
-  const headers = {
-    ...buildRateLimitHeaders(rateLimit),
-    "Cache-Control": "no-store",
-  };
-
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many health check requests." },
-      { status: 429, headers },
-    );
+  const rate = checkApiRateLimit(request, healthRateLimiter, "Too many health check requests.");
+  if (!rate.allowed) {
+    return rate.response;
   }
 
-  return NextResponse.json(
-    {
-      status: "ok",
-      timestamp: new Date().toISOString(),
-    },
-    { status: 200, headers },
-  );
+  return apiJson({ status: "ok", timestamp: new Date().toISOString() }, 200, rate.headers);
 }

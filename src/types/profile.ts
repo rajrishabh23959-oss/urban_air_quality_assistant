@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+/** Household vs. Community planning mode. */
 export const ProfileModeSchema = z.enum(["family", "community"]);
 export type ProfileMode = z.infer<typeof ProfileModeSchema>;
 

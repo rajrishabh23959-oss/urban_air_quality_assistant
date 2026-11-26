@@ -38,15 +38,33 @@ function getGeminiClient(apiKey: string): GoogleGenAI {
   return cachedClient;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function callGeminiJson(
+  apiKey: string,
+  systemInstruction: string,
+  contents: string,
+  emptyError: string,
+): Promise<string> {
+  const ai = getGeminiClient(apiKey);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([
-      promise,
+    const response = await Promise.race([
+      ai.models.generateContent({
+        model: GEMINI_MODEL,
+        contents,
+        config: { systemInstruction, responseMimeType: "application/json", temperature: 0.4 },
+      }),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Gemini request timed out")), timeoutMs);
+        timer = setTimeout(() => reject(new Error("Gemini request timed out")), GEMINI_TIMEOUT_MS);
       }),
     ]);
+    if (!response.text) {
+      throw new Error(emptyError);
+    }
+    return response.text
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
   } finally {
     if (timer !== undefined) {
       clearTimeout(timer);
@@ -65,14 +83,6 @@ function buildPlanCacheKey(airQuality: AirQualitySnapshot, profile: HouseholdPro
     profile,
   });
   return createHash("sha256").update(payload).digest("hex");
-}
-
-function stripMarkdownFences(raw: string): string {
-  return raw
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
 }
 
 /**
@@ -99,33 +109,20 @@ export async function generateActionPlan(
     return fallback;
   }
 
-  const ai = getGeminiClient(apiKey);
-  const response = await withTimeout(
-    ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: buildPlanPromptPayload(airQuality, profile),
-      config: {
-        systemInstruction: PLAN_SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        temperature: 0.4,
-      },
-    }),
-    GEMINI_TIMEOUT_MS,
+  const rawText = await callGeminiJson(
+    apiKey,
+    PLAN_SYSTEM_INSTRUCTION,
+    buildPlanPromptPayload(airQuality, profile),
+    "Gemini returned an empty response for action plan",
   );
 
-  const rawText = response.text;
-  if (!rawText) {
-    throw new Error("Gemini returned an empty response for action plan");
-  }
-
   try {
-    const parsedJson: unknown = JSON.parse(stripMarkdownFences(rawText));
+    const parsedJson: unknown = JSON.parse(rawText);
     const validated = ActionPlanSchema.parse({
       ...(typeof parsedJson === "object" && parsedJson !== null ? parsedJson : {}),
       generatedAt: new Date().toISOString(),
       source: "gemini",
     });
-
     planCache.set(cacheKey, validated);
     logger.info("Generated Gemini action plan", {
       city: airQuality.location.name,
@@ -151,27 +148,15 @@ export async function generateAssistantReply(req: AssistantRequest): Promise<Ass
     return buildDeterministicFallbackAssistant(req, "missing_key");
   }
 
-  const ai = getGeminiClient(apiKey);
-  const response = await withTimeout(
-    ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: buildAssistantPromptPayload(req),
-      config: {
-        systemInstruction: ASSISTANT_SYSTEM_INSTRUCTION,
-        responseMimeType: "application/json",
-        temperature: 0.4,
-      },
-    }),
-    GEMINI_TIMEOUT_MS,
+  const rawText = await callGeminiJson(
+    apiKey,
+    ASSISTANT_SYSTEM_INSTRUCTION,
+    buildAssistantPromptPayload(req),
+    "Gemini returned an empty response for assistant",
   );
 
-  const rawText = response.text;
-  if (!rawText) {
-    throw new Error("Gemini returned an empty response for assistant");
-  }
-
   try {
-    const parsedJson: unknown = JSON.parse(stripMarkdownFences(rawText));
+    const parsedJson: unknown = JSON.parse(rawText);
     return AssistantResponseSchema.parse({
       ...(typeof parsedJson === "object" && parsedJson !== null ? parsedJson : {}),
       source: "gemini",

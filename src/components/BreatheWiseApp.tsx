@@ -10,6 +10,9 @@ import { CitySearch } from "./CitySearch";
 import { ImpactSimulator } from "./ImpactSimulator";
 import { ProfileForm } from "./ProfileForm";
 
+/**
+ * Root client application shell composing BreatheWise data, dashboard, simulator, plan, and chat.
+ */
 export function BreatheWiseApp() {
   const {
     location,

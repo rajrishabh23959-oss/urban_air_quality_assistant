@@ -37,6 +37,19 @@ describe("api-client", () => {
       "fetch",
       vi.fn().mockResolvedValueOnce({
         ok: true,
+        json: async () => MOCK_AIR_QUALITY,
+      }),
+    );
+    const noAdminAqi = await fetchAirQualityApi(
+      { name: "Local", country: "IN", latitude: 28.6, longitude: 77.2, timezone: "auto" },
+      true,
+    );
+    expect(noAdminAqi.location.name).toBe("New Delhi");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
         json: async () => MOCK_PLAN,
       }),
     );

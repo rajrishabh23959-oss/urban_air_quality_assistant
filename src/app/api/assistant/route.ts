@@ -1,38 +1,37 @@
-import { NextResponse } from "next/server";
 import { AssistantRequestSchema } from "@/types";
-import { detectPromptInjection, sanitizeUserPrompt } from "@/lib/prompt-guard";
-import { buildRateLimitHeaders, genAiRateLimiter, getClientIdentifier } from "@/lib/rate-limit";
-import { readJsonWithLimit } from "@/lib/request-guard";
+import { apiJson, checkApiRateLimit } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
+import { detectPromptInjection, sanitizeUserPrompt } from "@/lib/prompt-guard";
+import { genAiRateLimiter, getClientIdentifier } from "@/lib/rate-limit";
+import { readJsonWithLimit } from "@/lib/request-guard";
 import { generateAssistantReply } from "@/services/gemini";
 
 const MAX_ASSISTANT_PAYLOAD_BYTES = 65_536;
 
+/**
+ * Grounded conversational assistant endpoint with prompt-injection defense and rate limiting.
+ */
 export async function POST(request: Request) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = genAiRateLimiter.check(clientId);
-  const headers = {
-    ...buildRateLimitHeaders(rateLimit),
-    "Cache-Control": "no-store",
-  };
-
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many assistant messages. Please pause briefly before sending another." },
-      { status: 429, headers },
-    );
+  const rate = checkApiRateLimit(
+    request,
+    genAiRateLimiter,
+    "Too many assistant messages. Please pause briefly before sending another.",
+  );
+  if (!rate.allowed) {
+    return rate.response;
   }
 
   const jsonResult = await readJsonWithLimit(request, MAX_ASSISTANT_PAYLOAD_BYTES);
   if (!jsonResult.ok) {
-    return NextResponse.json({ error: jsonResult.error }, { status: jsonResult.status, headers });
+    return apiJson({ error: jsonResult.error }, jsonResult.status, rate.headers);
   }
 
   const parsed = AssistantRequestSchema.safeParse(jsonResult.data);
   if (!parsed.success) {
-    return NextResponse.json(
+    return apiJson(
       { error: "Invalid assistant request. Keep messages between 2 and 500 characters." },
-      { status: 400, headers },
+      400,
+      rate.headers,
     );
   }
 
@@ -41,36 +40,39 @@ export async function POST(request: Request) {
     ...turn,
     content: sanitizeUserPrompt(turn.content, 1000),
   }));
-
   const hasInjection =
     detectPromptInjection(cleanedMessage) ||
     cleanedHistory.some((turn) => detectPromptInjection(turn.content));
 
   if (hasInjection) {
-    logger.warn("Blocked suspicious prompt injection attempt", { clientId });
-    return NextResponse.json(
+    logger.warn("Blocked suspicious prompt injection attempt", {
+      clientId: getClientIdentifier(request),
+    });
+    return apiJson(
       {
         error:
           "Please ask a question related to urban air quality, indoor air safety, or low-emission routines.",
       },
-      { status: 400, headers },
+      400,
+      rate.headers,
     );
   }
 
   try {
-    const response = await generateAssistantReply({
+    const reply = await generateAssistantReply({
       ...parsed.data,
       message: cleanedMessage,
       history: cleanedHistory,
     });
-    return NextResponse.json(response, { status: 200, headers });
+    return apiJson(reply, 200, rate.headers);
   } catch (error) {
     logger.error("Assistant route failed", {
       error: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json(
+    return apiJson(
       { error: "Unable to process your question right now. Please try again." },
-      { status: 502, headers },
+      502,
+      rate.headers,
     );
   }
 }

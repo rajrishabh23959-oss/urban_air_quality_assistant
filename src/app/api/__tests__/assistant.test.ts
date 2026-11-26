@@ -225,5 +225,20 @@ describe("/api/assistant", () => {
       }),
     );
     expect(limited.status).toBe(429);
+
+    process.env.GEMINI_API_KEY = "test-key";
+    mockGenerateContent.mockRejectedValueOnce("string-upstream-error");
+    const nonErrorRes = await POST(
+      new Request("http://localhost:3000/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "When should we ventilate?",
+          airQuality: MOCK_AIR_QUALITY,
+          profile: MOCK_PROFILE,
+        }),
+      }),
+    );
+    expect(nonErrorRes.status).toBe(502);
   });
 });

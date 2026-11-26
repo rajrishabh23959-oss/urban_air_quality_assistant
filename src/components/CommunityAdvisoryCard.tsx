@@ -8,7 +8,7 @@ interface CommunityAdvisoryCardProps {
   advisory: CommunityAdvisory;
 }
 
-export function CommunityAdvisoryCard({ advisory }: CommunityAdvisoryCardProps) {
+function useClipboardCopy() {
   const [copiedNotice, setCopiedNotice] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +41,15 @@ export function CommunityAdvisoryCard({ advisory }: CommunityAdvisoryCardProps) 
       setCopyError("Unable to copy notice automatically. Please copy the text manually.");
     }
   }
+
+  return { copiedNotice, copyError, handleCopyNotice };
+}
+
+/**
+ * Community Mode advisory card with clipboard copy, live status announcement, and RWA actions.
+ */
+export function CommunityAdvisoryCard({ advisory }: CommunityAdvisoryCardProps) {
+  const { copiedNotice, copyError, handleCopyNotice } = useClipboardCopy();
 
   return (
     <div className="space-y-4 rounded-2xl border border-sky-200 bg-sky-50/70 p-6">

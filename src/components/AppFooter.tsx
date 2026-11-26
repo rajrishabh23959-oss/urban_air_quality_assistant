@@ -1,3 +1,6 @@
+/**
+ * Application footer crediting Open-Meteo and Gemini 2.5 Flash data sources.
+ */
 export function AppFooter() {
   return (
     <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-600">

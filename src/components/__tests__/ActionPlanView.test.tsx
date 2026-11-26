@@ -26,7 +26,7 @@ describe("ActionPlanView", () => {
       },
     };
 
-    const { container } = render(
+    const { container, unmount } = render(
       <ActionPlanView
         plan={planWithCommunity}
         isLoading={false}
@@ -38,6 +38,9 @@ describe("ActionPlanView", () => {
     );
 
     expect(screen.getByText("Offline Fallback Mode")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Tailored action plan loaded with 9 recommendations/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("1. Low-Emission Daily Routines")).toBeInTheDocument();
     expect(screen.getByText("2. Indoor Air Quality (IAQ) Hacks")).toBeInTheDocument();
     expect(screen.getByText("3. Sustainable Alternatives")).toBeInTheDocument();
@@ -48,7 +51,7 @@ describe("ActionPlanView", () => {
 
     await user.click(screen.getByRole("button", { name: /Copy WhatsApp/i }));
     expect(writeText).toHaveBeenCalledWith("Keep windows closed outside 12:00-13:00.");
-    expect(screen.getByRole("status")).toHaveTextContent("Community notice copied to clipboard");
+    expect(screen.getByText("Community notice copied to clipboard")).toBeInTheDocument();
 
     // Simulate clipboard failure showing accessible alert
     writeText.mockRejectedValueOnce(new Error("Clipboard denied"));
@@ -68,6 +71,13 @@ describe("ActionPlanView", () => {
 
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    await user.click(screen.getByRole("button", { name: /Copy WhatsApp/i }));
+    unmount();
   });
 
   it("renders loading and error states cleanly", async () => {

@@ -86,4 +86,10 @@ describe("AssistantChat", () => {
     await user.click(screen.getByRole("button", { name: /^Ask$/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Unable to reach BreatheWise/i);
   });
+
+  it("disables input and prompts when airQuality is null", () => {
+    render(<AssistantChat airQuality={null} profile={MOCK_PROFILE} />);
+    expect(screen.getByLabelText(/Ask an air quality question/i)).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^Ask$/i })).toBeDisabled();
+  });
 });

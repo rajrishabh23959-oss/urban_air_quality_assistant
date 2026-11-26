@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { describe, expect, it, vi } from "vitest";
@@ -131,6 +131,14 @@ describe("CitySearch", () => {
     await user.click(document.body);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
+    // Focusin outside also closes open listbox
+    await user.type(input, "Luck");
+    await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument(), {
+      timeout: 1500,
+    });
+    fireEvent.focusIn(document.body);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
     // Empty search results announces "No matching cities found" & Escape when closed
     vi.stubGlobal(
       "fetch",
@@ -142,7 +150,34 @@ describe("CitySearch", () => {
     await user.clear(input);
     await user.type(input, "Xyz");
     expect(await screen.findByText(/No matching cities found/i)).toBeInTheDocument();
-    await user.keyboard("{Escape}");
+    await user.keyboard("{Enter}{Escape}");
+
+    // Result without admin1 renders cleanly and Enter with activeIndex === -1 does not select
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              name: "Singapore",
+              country: "Singapore",
+              latitude: 1.3521,
+              longitude: 103.8198,
+              timezone: "Asia/Singapore",
+            },
+          ],
+        }),
+      }),
+    );
+    await user.clear(input);
+    await user.type(input, "Sing");
+    await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument(), {
+      timeout: 1500,
+    });
+    expect(screen.getByRole("option")).toHaveTextContent("Singapore");
+    await user.keyboard("{Enter}");
+    expect(onSelect).not.toHaveBeenCalledWith(expect.objectContaining({ name: "Singapore" }));
 
     // Clicking option directly and pressing Escape while open
     vi.stubGlobal(

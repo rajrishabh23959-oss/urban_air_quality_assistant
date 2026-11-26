@@ -87,5 +87,17 @@ describe("/api/health and /api/geocode", () => {
       }),
     );
     expect(limited.status).toBe(429);
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce("unexpected-non-error"));
+    const unexpectedErr = await getGeocode(
+      new Request("http://localhost:3000/api/geocode?q=Paris"),
+    );
+    expect(unexpectedErr.status).toBe(502);
+
+    vi.spyOn(geocodeCache, "get").mockImplementationOnce(() => {
+      throw "cache-boom-string";
+    });
+    const internalErr = await getGeocode(new Request("http://localhost:3000/api/geocode?q=Berlin"));
+    expect(internalErr.status).toBe(500);
   });
 });

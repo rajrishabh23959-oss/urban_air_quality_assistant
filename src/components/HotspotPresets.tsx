@@ -8,6 +8,9 @@ interface HotspotPresetsProps {
   onSelect: (location: Location) => void;
 }
 
+/**
+ * One-click winter smog hotspot city selector buttons.
+ */
 export function HotspotPresets({ selectedLocation, onSelect }: HotspotPresetsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2" aria-label="Winter smog hotspot presets">

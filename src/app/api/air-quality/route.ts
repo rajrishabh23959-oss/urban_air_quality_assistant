@@ -1,19 +1,20 @@
-import { NextResponse } from "next/server";
 import { AirQualityQuerySchema } from "@/types";
-import { aqiRateLimiter, buildRateLimitHeaders, getClientIdentifier } from "@/lib/rate-limit";
+import { apiJson, checkApiRateLimit } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
+import { aqiRateLimiter } from "@/lib/rate-limit";
 import { fetchAirQualitySnapshot, UpstreamServiceError } from "@/services/open-meteo";
 
+/**
+ * Live and 24-hour hourly air quality endpoint backed by Open-Meteo.
+ */
 export async function GET(request: Request) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = aqiRateLimiter.check(clientId);
-  const rateHeaders = buildRateLimitHeaders(rateLimit);
-
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded for air quality lookups. Please retry shortly." },
-      { status: 429, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
-    );
+  const rate = checkApiRateLimit(
+    request,
+    aqiRateLimiter,
+    "Rate limit exceeded for air quality lookups. Please retry shortly.",
+  );
+  if (!rate.allowed) {
+    return rate.response;
   }
 
   const { searchParams } = new URL(request.url);
@@ -25,16 +26,11 @@ export async function GET(request: Request) {
     admin1: searchParams.get("admin1") ?? undefined,
     refresh: searchParams.get("refresh") ?? undefined,
   });
-
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid coordinates or location parameters." },
-      { status: 400, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
-    );
+    return apiJson({ error: "Invalid coordinates or location parameters." }, 400, rate.headers);
   }
 
   const forceRefresh = parsed.data.refresh === "true";
-
   try {
     const snapshot = await fetchAirQualitySnapshot(
       {
@@ -47,24 +43,17 @@ export async function GET(request: Request) {
       },
       forceRefresh,
     );
-
-    return NextResponse.json(snapshot, {
-      status: 200,
-      headers: {
-        ...rateHeaders,
-        "Cache-Control": forceRefresh
-          ? "no-store"
-          : "public, max-age=300, stale-while-revalidate=60",
-      },
-    });
+    const cache = forceRefresh ? "no-store" : "public, max-age=300, stale-while-revalidate=60";
+    return apiJson(snapshot, 200, rate.headers, cache);
   } catch (error) {
     logger.error("Air quality route error", {
       error: error instanceof Error ? error.message : "unknown",
     });
     const status = error instanceof UpstreamServiceError ? 502 : 500;
-    return NextResponse.json(
+    return apiJson(
       { error: "Unable to retrieve live air quality data. Please try again." },
-      { status, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
+      status,
+      rate.headers,
     );
   }
 }

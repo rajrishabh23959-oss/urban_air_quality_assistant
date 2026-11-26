@@ -3,198 +3,136 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchActionPlanApi, fetchAirQualityApi } from "@/lib/api-client";
 import { DEFAULT_LOCATION } from "@/lib/constants";
-import { flattenPlanActions } from "@/lib/impact-calculator";
-import {
-  DEFAULT_PROFILE,
-  HouseholdProfileSchema,
-  type ActionPlan,
-  type AirQualitySnapshot,
-  type HouseholdProfile,
-  type Location,
-} from "@/types";
+import type { ActionPlan, AirQualitySnapshot, HouseholdProfile, Location } from "@/types";
+import { useHabitSelection } from "./useHabitSelection";
+import { usePersistedProfile } from "./usePersistedProfile";
 
-const PROFILE_STORAGE_KEY = "breathewise_profile_v1";
+async function runAbortableLoad<T>(
+  abortRef: React.MutableRefObject<AbortController | null>,
+  setLoading: (loading: boolean) => void,
+  setError: (error: string | null) => void,
+  fallbackError: string,
+  task: (signal: AbortSignal) => Promise<T>,
+  onSuccess: (value: T) => void,
+) {
+  abortRef.current?.abort();
+  const controller = new AbortController();
+  abortRef.current = controller;
+  await Promise.resolve();
+  if (controller.signal.aborted) return;
 
-/**
- * Manages BreatheWise location, profile persistence, live AQI, action plan fetching,
- * and habit simulator selection state with AbortController race-condition guards.
- */
-export function useBreatheWiseData() {
-  const [location, setLocation] = useState<Location>(DEFAULT_LOCATION);
-  const [profile, setProfile] = useState<HouseholdProfile>(DEFAULT_PROFILE);
-  const [isProfileHydrated, setIsProfileHydrated] = useState(false);
+  setLoading(true);
+  setError(null);
+  try {
+    onSuccess(await task(controller.signal));
+  } catch (err) {
+    if (!(err instanceof DOMException && err.name === "AbortError")) {
+      setError(err instanceof Error ? err.message : fallbackError);
+    }
+  } finally {
+    if (abortRef.current === controller) {
+      setLoading(false);
+    }
+  }
+}
 
-  const [airQuality, setAirQuality] = useState<AirQualitySnapshot | null>(null);
-  const [aqiLoading, setAqiLoading] = useState<boolean>(true);
-  const [aqiError, setAqiError] = useState<string | null>(null);
-
-  const [plan, setPlan] = useState<ActionPlan | null>(null);
-  const [planLoading, setPlanLoading] = useState<boolean>(false);
-  const [planError, setPlanError] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  const aqiAbortRef = useRef<AbortController | null>(null);
-  const planAbortRef = useRef<AbortController | null>(null);
+function useBreatheWiseEffects(
+  location: Location,
+  airQuality: AirQualitySnapshot | null,
+  profile: HouseholdProfile,
+  isProfileHydrated: boolean,
+  loadAirQuality: (target: Location, forceRefresh?: boolean) => Promise<void>,
+  loadPlan: (
+    snapshot: AirQualitySnapshot,
+    curProfile: HouseholdProfile,
+    forceRefresh?: boolean,
+  ) => Promise<void>,
+  cancelAqi: () => void,
+  cancelPlan: () => void,
+) {
   const hasLoadedInitialPlanRef = useRef(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        const saved = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-        if (saved) {
-          const parsed = HouseholdProfileSchema.safeParse(JSON.parse(saved));
-          if (parsed.success) {
-            setProfile(parsed.data);
-          }
-        }
-      } catch {
-        // Ignore malformed localStorage state
-      } finally {
-        setIsProfileHydrated(true);
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleProfileChange = useCallback((next: HouseholdProfile) => {
-    setProfile(next);
-    try {
-      window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // Ignore storage quota errors
-    }
-  }, []);
-
-  const loadAirQuality = useCallback(async (target: Location, forceRefresh = false) => {
-    aqiAbortRef.current?.abort();
-    const controller = new AbortController();
-    aqiAbortRef.current = controller;
-
-    await Promise.resolve();
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    setAqiLoading(true);
-    setAqiError(null);
-
-    try {
-      const data = await fetchAirQualityApi(target, forceRefresh, controller.signal);
-      setAirQuality(data);
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        return;
-      }
-      setAqiError(err instanceof Error ? err.message : "Failed to load air quality.");
-    } finally {
-      if (aqiAbortRef.current === controller) {
-        setAqiLoading(false);
-      }
-    }
-  }, []);
-
-  const loadPlan = useCallback(
-    async (
-      snapshot: AirQualitySnapshot,
-      currentProfile: HouseholdProfile,
-      forceRefresh = false,
-    ) => {
-      planAbortRef.current?.abort();
-      const controller = new AbortController();
-      planAbortRef.current = controller;
-
-      await Promise.resolve();
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      setPlanLoading(true);
-      setPlanError(null);
-
-      try {
-        const data = await fetchActionPlanApi(
-          snapshot,
-          currentProfile,
-          forceRefresh,
-          controller.signal,
-        );
-        setPlan(data);
-        setSelectedIds(
-          new Set(
-            flattenPlanActions(data)
-              .slice(0, 3)
-              .map((i) => i.id),
-          ),
-        );
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") {
-          return;
-        }
-        setPlanError(err instanceof Error ? err.message : "Failed to generate action plan.");
-      } finally {
-        if (planAbortRef.current === controller) {
-          setPlanLoading(false);
-        }
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void loadAirQuality(location);
-    }, 0);
+    const timer = setTimeout(() => void loadAirQuality(location), 0);
     return () => {
       clearTimeout(timer);
-      aqiAbortRef.current?.abort();
+      cancelAqi();
     };
-  }, [location, loadAirQuality]);
+  }, [location, loadAirQuality, cancelAqi]);
 
   useEffect(() => {
-    if (!airQuality || !isProfileHydrated) {
-      return;
-    }
+    if (!airQuality || !isProfileHydrated) return;
     const delayMs = hasLoadedInitialPlanRef.current ? 350 : 0;
     const timer = setTimeout(() => {
       hasLoadedInitialPlanRef.current = true;
       void loadPlan(airQuality, profile);
     }, delayMs);
-
     return () => {
       clearTimeout(timer);
-      planAbortRef.current?.abort();
+      cancelPlan();
     };
-  }, [airQuality, profile, isProfileHydrated, loadPlan]);
+  }, [airQuality, profile, isProfileHydrated, loadPlan, cancelPlan]);
+}
 
-  const handleToggleAction = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
+/**
+ * Orchestrates BreatheWise location, profile, live AQI, tailored plan fetching,
+ * and habit simulator state with AbortController race-condition guards.
+ */
+export function useBreatheWiseData() {
+  const [location, setLocation] = useState<Location>(DEFAULT_LOCATION);
+  const { profile, isProfileHydrated, handleProfileChange } = usePersistedProfile();
+  const [airQuality, setAirQuality] = useState<AirQualitySnapshot | null>(null);
+  const [aqiLoading, setAqiLoading] = useState(true);
+  const [aqiError, setAqiError] = useState<string | null>(null);
+  const [plan, setPlan] = useState<ActionPlan | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
-  const handleSelectAll = useCallback(() => {
-    if (!plan) {
-      return;
-    }
-    setSelectedIds(new Set(flattenPlanActions(plan).map((item) => item.id)));
-  }, [plan]);
+  const habits = useHabitSelection(plan);
+  const aqiAbortRef = useRef<AbortController | null>(null);
+  const planAbortRef = useRef<AbortController | null>(null);
 
-  const handleClearAll = useCallback(() => setSelectedIds(new Set()), []);
-  const handleRefreshAqi = useCallback(
-    () => void loadAirQuality(location, true),
-    [location, loadAirQuality],
+  const loadAirQuality = useCallback(
+    (target: Location, forceRefresh = false) =>
+      runAbortableLoad(
+        aqiAbortRef,
+        setAqiLoading,
+        setAqiError,
+        "Failed to load air quality.",
+        (signal) => fetchAirQualityApi(target, forceRefresh, signal),
+        setAirQuality,
+      ),
+    [],
   );
-  const handleRegeneratePlan = useCallback(() => {
-    if (airQuality) {
-      void loadPlan(airQuality, profile, true);
-    }
-  }, [airQuality, profile, loadPlan]);
+
+  const loadPlan = useCallback(
+    (snapshot: AirQualitySnapshot, curProfile: HouseholdProfile, forceRefresh = false) =>
+      runAbortableLoad(
+        planAbortRef,
+        setPlanLoading,
+        setPlanError,
+        "Failed to generate action plan.",
+        (signal) => fetchActionPlanApi(snapshot, curProfile, forceRefresh, signal),
+        (nextPlan) => {
+          setPlan(nextPlan);
+          habits.initializeDefaults(nextPlan);
+        },
+      ),
+    [habits],
+  );
+
+  const cancelAqi = useCallback(() => aqiAbortRef.current?.abort(), []);
+  const cancelPlan = useCallback(() => planAbortRef.current?.abort(), []);
+  useBreatheWiseEffects(
+    location,
+    airQuality,
+    profile,
+    isProfileHydrated,
+    loadAirQuality,
+    loadPlan,
+    cancelAqi,
+    cancelPlan,
+  );
 
   return {
     location,
@@ -207,11 +145,13 @@ export function useBreatheWiseData() {
     plan,
     planLoading,
     planError,
-    selectedIds,
-    handleToggleAction,
-    handleSelectAll,
-    handleClearAll,
-    handleRefreshAqi,
-    handleRegeneratePlan,
+    ...habits,
+    handleRefreshAqi: useCallback(
+      () => void loadAirQuality(location, true),
+      [location, loadAirQuality],
+    ),
+    handleRegeneratePlan: useCallback(() => {
+      if (airQuality) void loadPlan(airQuality, profile, true);
+    }, [airQuality, profile, loadPlan]),
   };
 }

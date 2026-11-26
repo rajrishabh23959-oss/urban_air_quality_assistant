@@ -1,3 +1,4 @@
+import { z, type ZodType } from "zod";
 import {
   ActionPlanSchema,
   AirQualitySnapshotSchema,
@@ -10,36 +11,51 @@ import {
   type HouseholdProfile,
   type Location,
 } from "@/types";
-import { z } from "zod";
 
 const GeocodeApiResponseSchema = z.object({
   results: z.array(LocationSchema),
 });
 
+const ErrorPayloadSchema = z.object({
+  error: z.string().min(1),
+});
+
 function extractErrorMessage(payload: unknown, fallback: string): string {
-  if (typeof payload === "object" && payload !== null && "error" in payload) {
-    const err = (payload as { error?: unknown }).error;
-    if (typeof err === "string" && err.trim().length > 0) {
-      return err;
-    }
+  const parsed = ErrorPayloadSchema.safeParse(payload);
+  return parsed.success ? parsed.data.error : fallback;
+}
+
+async function fetchValidatedJson<T>(
+  url: string,
+  schema: ZodType<T>,
+  errorFallback: string,
+  invalidMsg: string,
+  init?: RequestInit,
+): Promise<T> {
+  const res = await fetch(url, init);
+  const raw: unknown = await res.json();
+  if (!res.ok) {
+    throw new Error(extractErrorMessage(raw, errorFallback));
   }
-  return fallback;
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(invalidMsg);
+  }
+  return parsed.data;
 }
 
 /**
  * Searches matching cities via /api/geocode with runtime Zod validation.
  */
 export async function searchCitiesApi(query: string, signal?: AbortSignal): Promise<Location[]> {
-  const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, { signal });
-  const raw: unknown = await res.json();
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(raw, "Could not search cities"));
-  }
-  const parsed = GeocodeApiResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error("Received invalid city search data.");
-  }
-  return parsed.data.results;
+  const data = await fetchValidatedJson(
+    `/api/geocode?q=${encodeURIComponent(query)}`,
+    GeocodeApiResponseSchema,
+    "Could not search cities",
+    "Received invalid city search data.",
+    { signal },
+  );
+  return data.results;
 }
 
 /**
@@ -63,16 +79,13 @@ export async function fetchAirQualityApi(
     params.set("refresh", "true");
   }
 
-  const res = await fetch(`/api/air-quality?${params.toString()}`, { signal });
-  const raw: unknown = await res.json();
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(raw, "Could not load air quality data."));
-  }
-  const parsed = AirQualitySnapshotSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error("Received invalid air quality response.");
-  }
-  return parsed.data;
+  return fetchValidatedJson(
+    `/api/air-quality?${params.toString()}`,
+    AirQualitySnapshotSchema,
+    "Could not load air quality data.",
+    "Received invalid air quality response.",
+    { signal },
+  );
 }
 
 /**
@@ -84,25 +97,22 @@ export async function fetchActionPlanApi(
   forceRefresh: boolean,
   signal?: AbortSignal,
 ): Promise<ActionPlan> {
-  const res = await fetch("/api/plan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      airQuality,
-      profile,
-      ...(forceRefresh ? { forceRefresh: true } : {}),
-    }),
-    signal,
-  });
-  const raw: unknown = await res.json();
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(raw, "Unable to generate action plan."));
-  }
-  const parsed = ActionPlanSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error("Received invalid action plan response.");
-  }
-  return parsed.data;
+  return fetchValidatedJson(
+    "/api/plan",
+    ActionPlanSchema,
+    "Unable to generate action plan.",
+    "Received invalid action plan response.",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        airQuality,
+        profile,
+        ...(forceRefresh ? { forceRefresh: true } : {}),
+      }),
+      signal,
+    },
+  );
 }
 
 /**
@@ -112,19 +122,16 @@ export async function fetchAssistantApi(
   payload: AssistantRequest,
   signal?: AbortSignal,
 ): Promise<AssistantResponse> {
-  const res = await fetch("/api/assistant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal,
-  });
-  const raw: unknown = await res.json();
-  if (!res.ok) {
-    throw new Error(extractErrorMessage(raw, "Assistant request failed."));
-  }
-  const parsed = AssistantResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error("Received invalid assistant response.");
-  }
-  return parsed.data;
+  return fetchValidatedJson(
+    "/api/assistant",
+    AssistantResponseSchema,
+    "Assistant request failed.",
+    "Received invalid assistant response.",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    },
+  );
 }

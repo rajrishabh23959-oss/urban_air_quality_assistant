@@ -1,38 +1,33 @@
-import { NextResponse } from "next/server";
 import { PlanRequestSchema } from "@/types";
-import { buildRateLimitHeaders, genAiRateLimiter, getClientIdentifier } from "@/lib/rate-limit";
-import { readJsonWithLimit } from "@/lib/request-guard";
+import { apiJson, checkApiRateLimit } from "@/lib/api-response";
 import { logger } from "@/lib/logger";
+import { genAiRateLimiter } from "@/lib/rate-limit";
+import { readJsonWithLimit } from "@/lib/request-guard";
 import { generateActionPlan } from "@/services/gemini";
 
 const MAX_PLAN_PAYLOAD_BYTES = 65_536;
 
+/**
+ * Generates a tailored 3-pillar winter smog action plan via Gemini 2.5 Flash.
+ */
 export async function POST(request: Request) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = genAiRateLimiter.check(clientId);
-  const headers = {
-    ...buildRateLimitHeaders(rateLimit),
-    "Cache-Control": "no-store",
-  };
-
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many plan generation requests. Please wait before regenerating." },
-      { status: 429, headers },
-    );
+  const rate = checkApiRateLimit(
+    request,
+    genAiRateLimiter,
+    "Too many plan generation requests. Please wait before regenerating.",
+  );
+  if (!rate.allowed) {
+    return rate.response;
   }
 
   const jsonResult = await readJsonWithLimit(request, MAX_PLAN_PAYLOAD_BYTES);
   if (!jsonResult.ok) {
-    return NextResponse.json({ error: jsonResult.error }, { status: jsonResult.status, headers });
+    return apiJson({ error: jsonResult.error }, jsonResult.status, rate.headers);
   }
 
   const parsed = PlanRequestSchema.safeParse(jsonResult.data);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid air quality or profile payload." },
-      { status: 400, headers },
-    );
+    return apiJson({ error: "Invalid air quality or profile payload." }, 400, rate.headers);
   }
 
   try {
@@ -41,14 +36,15 @@ export async function POST(request: Request) {
       parsed.data.profile,
       parsed.data.forceRefresh ?? false,
     );
-    return NextResponse.json(plan, { status: 200, headers });
+    return apiJson(plan, 200, rate.headers);
   } catch (error) {
     logger.error("Plan generation failed", {
       error: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json(
+    return apiJson(
       { error: "Unable to generate tailored action plan right now." },
-      { status: 502, headers },
+      502,
+      rate.headers,
     );
   }
 }

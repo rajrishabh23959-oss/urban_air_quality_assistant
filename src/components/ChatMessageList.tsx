@@ -11,6 +11,9 @@ interface ChatMessageListProps {
   messages: ChatMessage[];
 }
 
+/**
+ * Accessible scrollable conversation history log with WCAG AA high-contrast message bubbles.
+ */
 export function ChatMessageList({ messages }: ChatMessageListProps) {
   return (
     <div
