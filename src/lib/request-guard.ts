@@ -81,7 +81,7 @@ export async function readJsonWithLimit(
         error: "Unable to read request body.",
       };
     }
-    if (Buffer.byteLength(rawText, "utf8") > maxBytes) {
+    if (new TextEncoder().encode(rawText).byteLength > maxBytes) {
       return {
         ok: false,
         status: 413,

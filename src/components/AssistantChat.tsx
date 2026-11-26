@@ -96,7 +96,9 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
       }
       setError(err instanceof Error ? err.message : "Unable to reach BreatheWise Assistant.");
     } finally {
-      setIsSending(false);
+      if (abortRef.current === controller) {
+        setIsSending(false);
+      }
     }
   }
 
@@ -140,7 +142,11 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
       </div>
 
       <div
-        className="max-h-72 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4"
+        role="log"
+        aria-label="Conversation history"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
+        className="max-h-72 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
         aria-live="polite"
       >
         {messages.length === 0 ? (

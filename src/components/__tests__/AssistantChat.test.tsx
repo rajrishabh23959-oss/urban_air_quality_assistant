@@ -32,6 +32,9 @@ describe("AssistantChat", () => {
       <AssistantChat airQuality={MOCK_AIR_QUALITY} profile={MOCK_PROFILE} />,
     );
 
+    const logRegion = screen.getByRole("log", { name: /Conversation history/i });
+    expect(logRegion).toHaveAttribute("tabindex", "0");
+
     const input = screen.getByLabelText(/Ask an air quality question/i);
     await user.type(input, "Can I open windows now?");
     await user.click(screen.getByRole("button", { name: /^Ask$/i }));
@@ -61,6 +64,9 @@ describe("AssistantChat", () => {
     await user.click(screen.getByRole("button", { name: /Low-cost ways to protect/i }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Rate limit hit");
+    const logRegion = screen.getByRole("log", { name: /Conversation history/i });
+    expect(logRegion).toHaveAttribute("tabindex", "0");
+
     const input = screen.getByLabelText(/Ask an air quality question/i);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAttribute("aria-describedby", alert.id);

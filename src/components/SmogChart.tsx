@@ -146,7 +146,13 @@ export function SmogChart({ hourly24h, ventilationWindow }: SmogChartProps) {
       </div>
 
       {showTable && (
-        <div className="max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white">
+        <div
+          role="region"
+          aria-label="24-hour hourly air quality data table"
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          className="max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
+        >
           <table className="w-full text-left text-xs text-slate-800">
             <caption className="sr-only">24-hour hourly PM2.5 and US AQI forecast</caption>
             <thead className="sticky top-0 bg-slate-100 text-slate-900">

@@ -18,6 +18,19 @@ const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_TIMEOUT_MS = 15_000;
 export const planCache = new TtlLruCache<ActionPlan>(150, 15 * 60 * 1000);
 
+let cachedApiKey: string | undefined;
+let cachedClient: GoogleGenAI | null = null;
+
+function getGeminiClient(apiKey: string): GoogleGenAI {
+  if (!cachedClient || cachedApiKey !== apiKey) {
+    cachedClient = new GoogleGenAI({ apiKey });
+    cachedApiKey = apiKey;
+  }
+  return cachedClient;
+}
+
+type FallbackReason = "missing_key" | "validation_fallback";
+
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -65,6 +78,7 @@ function buildPlanCacheKey(airQuality: AirQualitySnapshot, profile: HouseholdPro
 function buildDeterministicFallbackPlan(
   airQuality: AirQualitySnapshot,
   profile: HouseholdProfile,
+  reason: FallbackReason,
 ): ActionPlan {
   const city = airQuality.location.name;
   const aqi = airQuality.current.usAqi;
@@ -103,10 +117,15 @@ function buildDeterministicFallbackPlan(
         }
       : undefined;
 
+  const reasonPrefix =
+    reason === "missing_key"
+      ? "Fallback guidance active (GEMINI_API_KEY not configured)."
+      : "Backup guidance active (live AI response could not be validated).";
+
   return ActionPlanSchema.parse({
     generatedAt: new Date().toISOString(),
     source: "fallback",
-    summary: `Fallback guidance active (GEMINI_API_KEY not configured). Tailored for ${city} at US AQI ${aqi} (${airQuality.tierInfo.label}) with ${hasVulnerable ? "vulnerable household members prioritized" : "general household protection"}.`,
+    summary: `${reasonPrefix} Tailored for ${city} at US AQI ${aqi} (${airQuality.tierInfo.label}) with ${hasVulnerable ? "vulnerable household members prioritized" : "general household protection"}.`,
     routines: [
       {
         id: "routine-ventilation",
@@ -268,7 +287,10 @@ function buildDeterministicFallbackPlan(
   });
 }
 
-function buildDeterministicFallbackAssistant(req: AssistantRequest): AssistantResponse {
+function buildDeterministicFallbackAssistant(
+  req: AssistantRequest,
+  reason: FallbackReason,
+): AssistantResponse {
   const { airQuality, profile, message } = req;
   const city = airQuality.location.name;
   const aqi = airQuality.current.usAqi;
@@ -290,8 +312,13 @@ function buildDeterministicFallbackAssistant(req: AssistantRequest): AssistantRe
     }prioritize indoor filtration (${profile.hasHepaPurifier ? "run your HEPA purifier continuously" : "use a DIY MERV-13 box fan filter"}), damp-mop floors instead of dry sweeping, and wear a fitted N95 mask outdoors.`;
   }
 
+  const note =
+    reason === "missing_key"
+      ? "(Note: Running in deterministic fallback mode because GEMINI_API_KEY is not configured.)"
+      : "(Note: Showing verified backup guidance because the live AI response could not be validated.)";
+
   return {
-    reply: `${reply}\n\n(Note: Running in deterministic fallback mode because GEMINI_API_KEY is not configured.)`,
+    reply: `${reply}\n\n${note}`,
     suggestedFollowUps: [
       `When is the safest time to ventilate in ${city} today?`,
       "How can I build a low-cost DIY air filter?",
@@ -328,12 +355,12 @@ export async function generateActionPlan(
 
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    const fallback = buildDeterministicFallbackPlan(airQuality, profile);
+    const fallback = buildDeterministicFallbackPlan(airQuality, profile, "missing_key");
     planCache.set(cacheKey, fallback);
     return fallback;
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getGeminiClient(apiKey);
   const userPayload = JSON.stringify({
     city: airQuality.location.name,
     country: airQuality.location.country,
@@ -436,7 +463,7 @@ export async function generateActionPlan(
     logger.warn("Gemini action plan validation failed; using deterministic fallback", {
       reason: error instanceof Error ? error.message : "unknown",
     });
-    const fallback = buildDeterministicFallbackPlan(airQuality, profile);
+    const fallback = buildDeterministicFallbackPlan(airQuality, profile, "validation_fallback");
     planCache.set(cacheKey, fallback);
     return fallback;
   }
@@ -448,10 +475,10 @@ export async function generateActionPlan(
 export async function generateAssistantReply(req: AssistantRequest): Promise<AssistantResponse> {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    return buildDeterministicFallbackAssistant(req);
+    return buildDeterministicFallbackAssistant(req, "missing_key");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = getGeminiClient(apiKey);
   const sanitizedMessage = sanitizeUserPrompt(req.message, 500);
 
   const contextPayload = JSON.stringify({
@@ -494,6 +521,6 @@ export async function generateAssistantReply(req: AssistantRequest): Promise<Ass
     logger.warn("Gemini assistant response validation failed; using deterministic fallback", {
       reason: error instanceof Error ? error.message : "unknown",
     });
-    return buildDeterministicFallbackAssistant(req);
+    return buildDeterministicFallbackAssistant(req, "validation_fallback");
   }
 }

@@ -42,6 +42,9 @@ describe("BreatheWiseApp integration", () => {
     await user.click(screen.getByRole("checkbox", { name: /Adopt habit: Midday Ventilation/i }));
     expect(screen.getByText(/1\/9 active/i)).toBeInTheDocument();
 
+    await user.click(screen.getByRole("checkbox", { name: /Adopt habit: Midday Ventilation/i }));
+    expect(screen.getByText(/0\/9 active/i)).toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: /Refresh AQI/i }));
     await user.click(screen.getByRole("button", { name: /Refresh AI Plan/i }));
 
@@ -129,5 +132,31 @@ describe("BreatheWiseApp integration", () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue("network-down"));
     render(<BreatheWiseApp />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/Failed to load air quality/i);
+  });
+
+  it("ignores AbortError and handles localStorage write failure", async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Quota exceeded");
+    });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError")));
+
+    const user = userEvent.setup();
+    render(<BreatheWiseApp />);
+    await user.click(screen.getByRole("button", { name: /Community Mode/i }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    setItemSpy.mockRestore();
+  });
+
+  it("ignores AbortError and handles localStorage write failure", async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("Quota exceeded");
+    });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError")));
+
+    const user = userEvent.setup();
+    render(<BreatheWiseApp />);
+    await user.click(screen.getByRole("button", { name: /Community Mode/i }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    setItemSpy.mockRestore();
   });
 });

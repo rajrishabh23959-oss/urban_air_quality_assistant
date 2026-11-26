@@ -118,7 +118,10 @@ describe("/api/plan", () => {
     });
     const res4 = await POST(req4);
     expect(res4.status).toBe(200);
-    expect(((await res4.json()) as { source: string }).source).toBe("fallback");
+    const body4 = (await res4.json()) as { source: string; summary: string };
+    expect(body4.source).toBe("fallback");
+    expect(body4.summary).toContain("could not be validated");
+    expect(body4.summary).not.toContain("GEMINI_API_KEY");
   });
 
   it("returns 415 on non-JSON Content-Type and 413 on oversized or streaming payload without Content-Length", async () => {

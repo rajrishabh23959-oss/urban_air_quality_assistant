@@ -20,7 +20,14 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
-      include: ["src/lib/**/*.ts", "src/services/**/*.ts", "src/types/**/*.ts", "src/app/api/**/*.ts", "src/components/**/*.tsx"],
+      include: [
+        "src/lib/**/*.ts",
+        "src/services/**/*.ts",
+        "src/types/**/*.ts",
+        "src/hooks/**/*.ts",
+        "src/app/api/**/*.ts",
+        "src/components/**/*.tsx",
+      ],
       exclude: ["src/**/*.test.{ts,tsx}", "src/components/SmogChartLazy.tsx"],
       thresholds: {
         statements: 90,

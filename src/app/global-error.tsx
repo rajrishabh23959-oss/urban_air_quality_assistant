@@ -9,7 +9,7 @@ export default function GlobalError({
   return (
     <html lang="en">
       <body className="bg-slate-50 text-slate-900 antialiased">
-        <main className="mx-auto max-w-xl px-4 py-20 text-center">
+        <main id="main-content" tabIndex={-1} className="mx-auto max-w-xl px-4 py-20 text-center">
           <h1 className="text-2xl font-bold">Application Error</h1>
           <p className="mt-2 text-sm text-slate-700">
             BreatheWise encountered an unexpected error. Please reload to continue.

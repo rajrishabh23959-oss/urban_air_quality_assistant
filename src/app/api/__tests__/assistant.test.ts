@@ -148,7 +148,10 @@ describe("/api/assistant", () => {
       }),
     );
     expect(fallbackRes.status).toBe(200);
-    expect(((await fallbackRes.json()) as { source: string }).source).toBe("fallback");
+    const fallbackBody = (await fallbackRes.json()) as { source: string; reply: string };
+    expect(fallbackBody.source).toBe("fallback");
+    expect(fallbackBody.reply).toContain("could not be validated");
+    expect(fallbackBody.reply).not.toContain("GEMINI_API_KEY");
   });
 
   it("returns 400 on malformed JSON or short message, 502 on Gemini error, and 429 on rate limit", async () => {
