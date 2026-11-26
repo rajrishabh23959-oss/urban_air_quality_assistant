@@ -64,5 +64,20 @@ describe("AssistantChat", () => {
     const input = screen.getByLabelText(/Ask an air quality question/i);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAttribute("aria-describedby", alert.id);
+
+    // Silently ignores AbortError
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValueOnce(new DOMException("Aborted", "AbortError")),
+    );
+    await user.type(input, "Hello?");
+    await user.click(screen.getByRole("button", { name: /^Ask$/i }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Non-Error rejection fallback message
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce("network-string-failure"));
+    await user.type(input, "Retry?");
+    await user.click(screen.getByRole("button", { name: /^Ask$/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Unable to reach BreatheWise/i);
   });
 });

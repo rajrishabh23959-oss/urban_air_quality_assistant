@@ -12,6 +12,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
+    pool: "vmThreads",
     testTimeout: 15000,
     maxWorkers: 2,
     setupFiles: ["./vitest.setup.ts"],
@@ -22,10 +23,10 @@ export default defineConfig({
       include: ["src/lib/**/*.ts", "src/services/**/*.ts", "src/types/**/*.ts", "src/app/api/**/*.ts", "src/components/**/*.tsx"],
       exclude: ["src/**/*.test.{ts,tsx}", "src/components/SmogChartLazy.tsx"],
       thresholds: {
-        statements: 85,
-        branches: 85,
-        functions: 85,
-        lines: 85,
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
       },
     },
   },

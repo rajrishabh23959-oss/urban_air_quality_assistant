@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Rate limit exceeded for air quality lookups. Please retry shortly." },
-      { status: 429, headers: rateHeaders },
+      { status: 429, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
     );
   }
 
@@ -23,26 +23,40 @@ export async function GET(request: Request) {
     name: searchParams.get("name") ?? undefined,
     country: searchParams.get("country") ?? undefined,
     admin1: searchParams.get("admin1") ?? undefined,
+    refresh: searchParams.get("refresh") ?? undefined,
   });
 
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid coordinates or location parameters." },
-      { status: 400, headers: rateHeaders },
+      { status: 400, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
     );
   }
 
-  try {
-    const snapshot = await fetchAirQualitySnapshot({
-      name: parsed.data.name,
-      country: parsed.data.country,
-      admin1: parsed.data.admin1,
-      latitude: parsed.data.lat,
-      longitude: parsed.data.lon,
-      timezone: "auto",
-    });
+  const forceRefresh = parsed.data.refresh === "true";
 
-    return NextResponse.json(snapshot, { status: 200, headers: rateHeaders });
+  try {
+    const snapshot = await fetchAirQualitySnapshot(
+      {
+        name: parsed.data.name,
+        country: parsed.data.country,
+        admin1: parsed.data.admin1,
+        latitude: parsed.data.lat,
+        longitude: parsed.data.lon,
+        timezone: "auto",
+      },
+      forceRefresh,
+    );
+
+    return NextResponse.json(snapshot, {
+      status: 200,
+      headers: {
+        ...rateHeaders,
+        "Cache-Control": forceRefresh
+          ? "no-store"
+          : "public, max-age=300, stale-while-revalidate=60",
+      },
+    });
   } catch (error) {
     logger.error("Air quality route error", {
       error: error instanceof Error ? error.message : "unknown",
@@ -50,7 +64,7 @@ export async function GET(request: Request) {
     const status = error instanceof UpstreamServiceError ? 502 : 500;
     return NextResponse.json(
       { error: "Unable to retrieve live air quality data. Please try again." },
-      { status, headers: rateHeaders },
+      { status, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
     );
   }
 }

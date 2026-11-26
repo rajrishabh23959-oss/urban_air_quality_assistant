@@ -76,5 +76,19 @@ describe("AirQualityDashboard", () => {
       />,
     );
     expect(screen.getByText("Moderate")).toBeInTheDocument();
+
+    rerender(
+      <AirQualityDashboard
+        snapshot={{
+          ...MOCK_AIR_QUALITY,
+          location: { ...MOCK_AIR_QUALITY.location, admin1: undefined },
+          tierInfo: { ...MOCK_AIR_QUALITY.tierInfo, tier: "hazardous", label: "Hazardous" },
+        }}
+        isLoading={true}
+        error={null}
+        onRefresh={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Hazardous")).toBeInTheDocument();
   });
 });

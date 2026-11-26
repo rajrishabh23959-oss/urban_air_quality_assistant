@@ -73,6 +73,30 @@ describe("/api/assistant", () => {
     });
     expect((await POST(historyInjectionReq)).status).toBe(400);
 
+    const nonJsonReq = new Request("http://localhost:3000/api/assistant", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: "hello",
+    });
+    const nonJsonRes = await POST(nonJsonReq);
+    expect(nonJsonRes.status).toBe(415);
+    expect(nonJsonRes.headers.get("Cache-Control")).toBe("no-store");
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("z".repeat(70_000)));
+        controller.close();
+      },
+    });
+    const streamReq = new Request("http://localhost:3000/api/assistant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: stream,
+      // @ts-expect-error Node fetch supports duplex on Request with ReadableStream
+      duplex: "half",
+    });
+    expect((await POST(streamReq)).status).toBe(413);
+
     const oversizedReq = new Request("http://localhost:3000/api/assistant", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -85,7 +109,7 @@ describe("/api/assistant", () => {
     expect((await POST(oversizedReq)).status).toBe(413);
   });
 
-  it("uses Gemini SDK when GEMINI_API_KEY is set", async () => {
+  it("uses Gemini SDK when GEMINI_API_KEY is set and falls back on malformed JSON", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     mockGenerateContent.mockResolvedValueOnce({
       text: JSON.stringify({
@@ -106,9 +130,25 @@ describe("/api/assistant", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
     const data = (await res.json()) as { source: string; reply: string };
     expect(data.source).toBe("gemini");
     expect(data.reply).toContain("12:00");
+
+    mockGenerateContent.mockResolvedValueOnce({ text: "{invalid-json" });
+    const fallbackRes = await POST(
+      new Request("http://localhost:3000/api/assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "When should we ventilate?",
+          airQuality: MOCK_AIR_QUALITY,
+          profile: MOCK_PROFILE,
+        }),
+      }),
+    );
+    expect(fallbackRes.status).toBe(200);
+    expect(((await fallbackRes.json()) as { source: string }).source).toBe("fallback");
   });
 
   it("returns 400 on malformed JSON or short message, 502 on Gemini error, and 429 on rate limit", async () => {
@@ -138,6 +178,23 @@ describe("/api/assistant", () => {
       }),
     });
     expect((await POST(errReq)).status).toBe(502);
+
+    mockGenerateContent.mockResolvedValueOnce({ text: "" });
+    expect(
+      (
+        await POST(
+          new Request("http://localhost:3000/api/assistant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: "When should we ventilate?",
+              airQuality: MOCK_AIR_QUALITY,
+              profile: MOCK_PROFILE,
+            }),
+          }),
+        )
+      ).status,
+    ).toBe(502);
 
     delete process.env.GEMINI_API_KEY;
     for (let i = 0; i < 15; i += 1) {

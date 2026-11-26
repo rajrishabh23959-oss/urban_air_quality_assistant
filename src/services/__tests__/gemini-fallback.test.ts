@@ -26,6 +26,12 @@ describe("gemini fallback branches", () => {
     expect(plan.routines[0]?.action).toContain("Keep windows sealed");
     expect(plan.iaqHacks[1]?.steps).toContain("HEPA purifier");
     expect(plan.sustainableSwaps[0]?.sustainableAlternative).toContain("induction or LPG");
+
+    const twoWheelerPlan = await generateActionPlan(MOCK_AIR_QUALITY, {
+      ...MOCK_PROFILE,
+      commute: "two_wheeler",
+    });
+    expect(twoWheelerPlan.routines[1]?.action).toContain("two wheeler");
   });
 
   it("adapts fallback action plan to induction cooking", async () => {
@@ -52,5 +58,16 @@ describe("gemini fallback branches", () => {
       history: [],
     });
     expect(generalRes.reply).toContain("DIY MERV-13");
+
+    const unsafeWindowRes = await generateAssistantReply({
+      message: "Should I open windows?",
+      airQuality: {
+        ...MOCK_AIR_QUALITY,
+        ventilationWindow: { ...MOCK_AIR_QUALITY.ventilationWindow, isSafe: false },
+      },
+      profile: { ...MOCK_PROFILE, hasHepaPurifier: true, vulnerableGroups: [] },
+      history: [],
+    });
+    expect(unsafeWindowRes.reply).toContain("Keep windows sealed");
   });
 });

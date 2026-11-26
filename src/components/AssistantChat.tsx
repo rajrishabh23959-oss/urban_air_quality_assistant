@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { MessageSquare, Send } from "lucide-react";
 import type { AirQualitySnapshot, AssistantResponse, HouseholdProfile } from "@/types";
 
@@ -24,6 +24,13 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
   const inputId = useId();
   const errorId = useId();
   const msgCounterRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, [airQuality?.location.latitude, airQuality?.location.longitude]);
 
   const city = airQuality?.location.name ?? "your city";
   const quickPrompts = [
@@ -51,6 +58,10 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
     setError(null);
     setIsSending(true);
 
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/assistant", {
         method: "POST",
@@ -61,6 +72,7 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
           profile,
           history: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
         }),
+        signal: controller.signal,
       });
 
       const data = (await res.json()) as Partial<AssistantResponse> & { error?: string };
@@ -79,6 +91,9 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
         },
       ]);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return;
+      }
       setError(err instanceof Error ? err.message : "Unable to reach BreatheWise Assistant.");
     } finally {
       setIsSending(false);

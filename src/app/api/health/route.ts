@@ -4,12 +4,15 @@ import { buildRateLimitHeaders, getClientIdentifier, healthRateLimiter } from "@
 export async function GET(request: Request) {
   const clientId = getClientIdentifier(request);
   const rateLimit = healthRateLimiter.check(clientId);
-  const rateHeaders = buildRateLimitHeaders(rateLimit);
+  const headers = {
+    ...buildRateLimitHeaders(rateLimit),
+    "Cache-Control": "no-store",
+  };
 
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Too many health check requests." },
-      { status: 429, headers: rateHeaders },
+      { status: 429, headers },
     );
   }
 
@@ -18,6 +21,6 @@ export async function GET(request: Request) {
       status: "ok",
       timestamp: new Date().toISOString(),
     },
-    { status: 200, headers: rateHeaders },
+    { status: 200, headers },
   );
 }

@@ -61,5 +61,14 @@ describe("aqi domain helpers", () => {
 
     expect(findSafeVentilationWindow([]).isSafe).toBe(false);
     expect(findSafeVentilationWindow([MOCK_HOURLY_24H[12]!]).isSafe).toBe(true);
+
+    const zeroMin = MOCK_HOURLY_24H.map((pt, idx) => ({
+      ...pt,
+      pm25: idx === 0 ? 0 : 25,
+    }));
+    expect(assessInversionRisk(zeroMin).level).toBe("moderate");
+
+    const allZero = MOCK_HOURLY_24H.map((pt) => ({ ...pt, pm25: 0 }));
+    expect(assessInversionRisk(allZero).level).toBe("low");
   });
 });

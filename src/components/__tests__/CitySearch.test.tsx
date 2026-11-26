@@ -131,6 +131,50 @@ describe("CitySearch", () => {
     await user.click(document.body);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
+    // Empty search results & Escape when closed
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ results: [] }),
+      }),
+    );
+    await user.clear(input);
+    await user.type(input, "Xyz");
+    await user.keyboard("{Escape}");
+
+    // Clicking option directly and pressing Escape while open
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ results: [SMOG_HOTSPOT_PRESETS[2]] }),
+      }),
+    );
+    await user.clear(input);
+    await user.type(input, "Kolk");
+    await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument(), {
+      timeout: 1500,
+    });
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    await user.clear(input);
+    await user.type(input, "Kolk");
+    await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument(), {
+      timeout: 1500,
+    });
+    await user.click(screen.getByRole("option"));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: "Kolkata" }));
+
+    // Silently ignores AbortError during typing
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValueOnce(new DOMException("Aborted", "AbortError")),
+    );
+    await user.type(input, "Mumb");
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+
     await user.click(screen.getByRole("button", { name: /Use my location/i }));
     expect(screen.getByRole("alert")).toHaveTextContent(/permission denied/i);
 

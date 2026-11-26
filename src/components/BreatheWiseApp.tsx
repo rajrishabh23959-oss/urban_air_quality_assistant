@@ -68,7 +68,7 @@ export function BreatheWiseApp() {
     }
   }, []);
 
-  const loadAirQuality = useCallback(async (target: Location) => {
+  const loadAirQuality = useCallback(async (target: Location, forceRefresh = false) => {
     aqiAbortRef.current?.abort();
     const controller = new AbortController();
     aqiAbortRef.current = controller;
@@ -90,6 +90,9 @@ export function BreatheWiseApp() {
       });
       if (target.admin1) {
         params.set("admin1", target.admin1);
+      }
+      if (forceRefresh) {
+        params.set("refresh", "true");
       }
 
       const res = await fetch(`/api/air-quality?${params.toString()}`, {
@@ -237,7 +240,7 @@ export function BreatheWiseApp() {
               snapshot={airQuality}
               isLoading={aqiLoading}
               error={aqiError}
-              onRefresh={() => void loadAirQuality(location)}
+              onRefresh={() => void loadAirQuality(location, true)}
             />
           </div>
           <div>

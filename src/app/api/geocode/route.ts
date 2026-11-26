@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "Too many city search requests. Please wait a moment and try again." },
-      { status: 429, headers: rateHeaders },
+      { status: 429, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
     );
   }
 
@@ -24,13 +24,22 @@ export async function GET(request: Request) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid search query. Provide 2 to 80 characters." },
-      { status: 400, headers: rateHeaders },
+      { status: 400, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
     );
   }
 
   try {
     const results = await searchCities(parsed.data.q);
-    return NextResponse.json({ results }, { status: 200, headers: rateHeaders });
+    return NextResponse.json(
+      { results },
+      {
+        status: 200,
+        headers: {
+          ...rateHeaders,
+          "Cache-Control": "public, max-age=300, stale-while-revalidate=60",
+        },
+      },
+    );
   } catch (error) {
     logger.error("Geocode route error", {
       error: error instanceof Error ? error.message : "unknown",
@@ -38,7 +47,7 @@ export async function GET(request: Request) {
     const status = error instanceof UpstreamServiceError ? 502 : 500;
     return NextResponse.json(
       { error: "Unable to fetch city matches right now. Please try again." },
-      { status, headers: rateHeaders },
+      { status, headers: { ...rateHeaders, "Cache-Control": "no-store" } },
     );
   }
 }

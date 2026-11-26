@@ -74,9 +74,11 @@ export function AirQualityDashboard({
   return (
     <section
       aria-labelledby="aqi-heading"
-      aria-live="polite"
       className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
+      <p className="sr-only" role="status" aria-live="polite">
+        {`${location.name}: US AQI ${current.usAqi}, ${tierInfo.label}.`}
+      </p>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wide text-slate-600 uppercase">

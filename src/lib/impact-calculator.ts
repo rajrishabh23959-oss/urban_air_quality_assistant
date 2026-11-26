@@ -10,7 +10,9 @@ export interface FlattenedActionItem {
 export interface CumulativeImpactSummary {
   selectedCount: number;
   totalCount: number;
+  householdSize: number;
   personalPm25ReductionUgPerDay: number;
+  householdPm25ReductionUgPerDay: number;
   exposureReductionPercent: number;
   equivalentCigarettesAvoidedPerDay: number;
   weeklyCo2eSavedKg: number;
@@ -47,12 +49,8 @@ export function flattenPlanActions(plan: ActionPlan): FlattenedActionItem[] {
 }
 
 /**
- * Calculates cumulative personal health exposure reduction, household emission savings,
- * and community-scaled impact for the user's currently checked habits.
- *
- * Methodology:
- * - Exposure reduction uses diminishing-returns saturation capped at 85% against baseline daily inhaled PM2.5.
- * - Equivalent cigarettes avoided uses the standard Berkeley Earth approximation (~22 µg/m³ over 24h ≈ 1 cigarette, ~220 µg/day inhaled).
+ * Calculates cumulative personal health exposure reduction, household-wide PM2.5 relief,
+ * weekly emission savings, and community-scaled impact for the user's currently checked habits.
  */
 export function calculateCumulativeImpact(
   plan: ActionPlan,
@@ -73,7 +71,6 @@ export function calculateCumulativeImpact(
     monthlyPm25AvoidedG += Math.max(0, item.impact.pm25AvoidedGPerMonth);
   }
 
-  // Average adult inhales ~12 m³/day; baseline daily inhaled PM2.5 in µg/day
   const baselineDailyInhaledUg = Math.max(60, Math.max(0, currentPm25) * 12);
   const rawPercent = (personalPm25ReductionUgPerDay / baselineDailyInhaledUg) * 100;
   const exposureReductionPercent = Math.min(85, Math.round(rawPercent));
@@ -81,6 +78,10 @@ export function calculateCumulativeImpact(
   const equivalentCigarettesAvoidedPerDay = Number(
     (personalPm25ReductionUgPerDay / 220).toFixed(1),
   );
+
+  const householdSize = Math.max(1, profile.householdSize);
+  const roundedPersonal = Math.round(personalPm25ReductionUgPerDay);
+  const householdPm25ReductionUgPerDay = Math.round(personalPm25ReductionUgPerDay * householdSize);
 
   const households = Math.max(1, profile.communityHouseholds);
   const communityWeeklyCo2eSavedKg = Number((weeklyCo2eSavedKg * households).toFixed(1));
@@ -91,7 +92,9 @@ export function calculateCumulativeImpact(
   return {
     selectedCount: selectedItems.length,
     totalCount: allItems.length,
-    personalPm25ReductionUgPerDay: Math.round(personalPm25ReductionUgPerDay),
+    householdSize,
+    personalPm25ReductionUgPerDay: roundedPersonal,
+    householdPm25ReductionUgPerDay,
     exposureReductionPercent,
     equivalentCigarettesAvoidedPerDay,
     weeklyCo2eSavedKg: Number(weeklyCo2eSavedKg.toFixed(1)),

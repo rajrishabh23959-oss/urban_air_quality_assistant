@@ -78,13 +78,27 @@ describe("/api/plan", () => {
     await POST(req2);
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
 
-    // forceRefresh bypasses cache
+    // forceRefresh bypasses cache (also test community mode & markdown-fenced Gemini output)
+    mockGenerateContent.mockResolvedValueOnce({
+      text: `\`\`\`json\n${JSON.stringify({
+        summary: MOCK_PLAN.summary,
+        routines: MOCK_PLAN.routines,
+        iaqHacks: MOCK_PLAN.iaqHacks,
+        sustainableSwaps: MOCK_PLAN.sustainableSwaps,
+        communityAdvisory: {
+          headline: "Community Alert",
+          whatsappNotice: "Keep windows closed during peak evening smog.",
+          schoolAndRwaActions: ["Shift assembly indoors", "No idling at gates"],
+          collectiveImpactNote: "50 homes save 420 kg CO2e/week.",
+        },
+      })}\n\`\`\``,
+    });
     const req3 = new Request("http://localhost:3000/api/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         airQuality: MOCK_AIR_QUALITY,
-        profile: MOCK_PROFILE,
+        profile: { ...MOCK_PROFILE, mode: "community" },
         forceRefresh: true,
       }),
     });
@@ -107,13 +121,41 @@ describe("/api/plan", () => {
     expect(((await res4.json()) as { source: string }).source).toBe("fallback");
   });
 
-  it("returns 413 when payload exceeds 64 KB", async () => {
+  it("returns 415 on non-JSON Content-Type and 413 on oversized or streaming payload without Content-Length", async () => {
+    const nonJson = new Request("http://localhost:3000/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ airQuality: MOCK_AIR_QUALITY, profile: MOCK_PROFILE }),
+    });
+    const nonJsonRes = await POST(nonJson);
+    expect(nonJsonRes.status).toBe(415);
+    expect(nonJsonRes.headers.get("Cache-Control")).toBe("no-store");
+
     const req = new Request("http://localhost:3000/api/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ padding: "x".repeat(70_000) }),
     });
     expect((await POST(req)).status).toBe(413);
+
+    // Streaming request without Content-Length header
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const encoder = new TextEncoder();
+        controller.enqueue(encoder.encode('{"padding":"'));
+        controller.enqueue(encoder.encode("y".repeat(70_000)));
+        controller.enqueue(encoder.encode('"}'));
+        controller.close();
+      },
+    });
+    const streamReq = new Request("http://localhost:3000/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: stream,
+      // @ts-expect-error Node fetch supports duplex on Request with ReadableStream
+      duplex: "half",
+    });
+    expect((await POST(streamReq)).status).toBe(413);
   });
 
   it("enforces rate limits with 429 status", async () => {
@@ -160,5 +202,22 @@ describe("/api/plan", () => {
       body: JSON.stringify({ airQuality: MOCK_AIR_QUALITY, profile: MOCK_PROFILE }),
     });
     expect((await POST(errReq)).status).toBe(502);
+
+    mockGenerateContent.mockRejectedValueOnce("non-error-failure");
+    expect(
+      (
+        await POST(
+          new Request("http://localhost:3000/api/plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              airQuality: MOCK_AIR_QUALITY,
+              profile: MOCK_PROFILE,
+              forceRefresh: true,
+            }),
+          }),
+        )
+      ).status,
+    ).toBe(502);
   });
 });

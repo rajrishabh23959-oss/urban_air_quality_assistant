@@ -26,6 +26,16 @@ describe("open-meteo service edge cases", () => {
 
     vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error("Network down")));
     await expect(searchCities("Mumbai")).rejects.toThrow(UpstreamServiceError);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      }),
+    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce("non-error-rejection"));
+    await expect(searchCities("Paris")).rejects.toThrow(UpstreamServiceError);
   });
 
   it("handles missing current, null metrics, and empty hourly arrays", async () => {
@@ -84,6 +94,23 @@ describe("open-meteo service edge cases", () => {
         country: "Testland",
         latitude: 11,
         longitude: 21,
+        timezone: "auto",
+      }),
+    ).rejects.toThrow(UpstreamServiceError);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ invalid: true }),
+      }),
+    );
+    await expect(
+      fetchAirQualitySnapshot({
+        name: "BadCity",
+        country: "Testland",
+        latitude: 12,
+        longitude: 22,
         timezone: "auto",
       }),
     ).rejects.toThrow(UpstreamServiceError);

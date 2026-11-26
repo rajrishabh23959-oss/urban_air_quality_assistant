@@ -23,10 +23,18 @@ describe("impact-calculator", () => {
     // 180 + 220 + 300 = 700 ug/day; baseline = 100 * 12 = 1200 -> 58%
     expect(summary.selectedCount).toBe(3);
     expect(summary.personalPm25ReductionUgPerDay).toBe(700);
+    expect(summary.householdSize).toBe(4);
+    expect(summary.householdPm25ReductionUgPerDay).toBe(2800);
     expect(summary.exposureReductionPercent).toBe(58);
     expect(summary.equivalentCigarettesAvoidedPerDay).toBe(3.2);
     expect(summary.weeklyCo2eSavedKg).toBe(10.6);
     expect(summary.communityWeeklyCo2eSavedKg).toBe(530);
+
+    const sixMemberSummary = calculateCumulativeImpact(MOCK_PLAN, selected, 100, {
+      ...MOCK_PROFILE,
+      householdSize: 6,
+    });
+    expect(sixMemberSummary.householdPm25ReductionUgPerDay).toBe(4200);
   });
 
   it("caps exposure reduction at 85% for extreme savings", () => {

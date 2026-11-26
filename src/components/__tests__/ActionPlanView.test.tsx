@@ -54,6 +54,14 @@ describe("ActionPlanView", () => {
     await user.click(screen.getByRole("button", { name: /Copied notice/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Unable to copy notice/i);
 
+    // Simulate missing navigator.clipboard
+    Object.defineProperty(navigator, "clipboard", {
+      value: undefined,
+      configurable: true,
+    });
+    await user.click(screen.getByRole("button", { name: /Copy WhatsApp/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Clipboard access is unavailable/i);
+
     await user.click(screen.getByRole("button", { name: /Refresh AI Plan/i }));
     expect(onRegenerate).toHaveBeenCalledTimes(1);
 

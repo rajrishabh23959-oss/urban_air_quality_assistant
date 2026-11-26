@@ -7,16 +7,17 @@ BreatheWise is a GenAI-powered web application that helps families and communiti
 - **`src/types/`**: Shared domain types and strict Zod schemas (`air-quality.ts`, `profile.ts`, `plan.ts`).
 - **`src/lib/`**: Pure domain logic and infrastructure utilities:
   - `aqi.ts`: US AQI severity classification, winter thermal inversion risk assessment, and 24-hour safe ventilation window calculation.
-  - `impact-calculator.ts`: Cumulative personal PM2.5 exposure reduction, equivalent cigarettes avoided, weekly CO2e savings, and community-scaled impact.
+  - `impact-calculator.ts`: Cumulative personal PM2.5 exposure reduction, `householdSize`-scaled family-wide PM2.5 relief, equivalent cigarettes avoided, weekly CO2e savings, and community-scaled impact.
   - `cache.ts`: Bounded in-memory LRU/TTL cache (`TtlLruCache`).
   - `rate-limit.ts`: Sliding-window rate limiter (`SlidingWindowRateLimiter`) with standard `X-RateLimit-*` and `Retry-After` headers.
-  - `prompt-guard.ts`: Control-character sanitization and prompt-injection detection.
+  - `request-guard.ts`: Streaming byte-limit JSON reader (`readJsonWithLimit`, 64 KB cap, `413 Payload Too Large`) and `Content-Type: application/json` enforcement (`415 Unsupported Media Type`).
+  - `prompt-guard.ts`: Control-character sanitization and prompt-injection detection across both current messages and chat history.
   - `logger.ts` & `env.ts`: Structured JSON logger and server-side-only environment access.
 - **`src/services/`**:
-  - `open-meteo.ts`: Allowlisted Open-Meteo Geocoding (1h TTL) and Air Quality (10m TTL) integrations with `AbortController` timeouts and Zod validation.
-  - `gemini.ts`: Server-side `@google/genai` (`gemini-2.5-flash`) integration with separated `systemInstruction`, structured JSON output validated by Zod, 15-minute plan caching, and a deterministic fallback engine when `GEMINI_API_KEY` is absent in CI/test environments.
-- **`src/app/api/`**: Rate-limited, Zod-validated Route Handlers (`/api/health`, `/api/geocode`, `/api/air-quality`, `/api/plan`, `/api/assistant`).
-- **`src/components/`**: Accessible React components (`CitySearch`, `AirQualityDashboard`, `SmogChartLazy`, `ProfileForm`, `ImpactSimulator`, `ActionPlanView`, `ImpactCard`, `AssistantChat`).
+  - `open-meteo.ts`: Allowlisted (`ALLOWED_UPSTREAM_HOSTS` + `https:`) Open-Meteo Geocoding (1h TTL) and Air Quality (10m TTL, bypassable via `refresh=true`) integrations with 8s `AbortController` timeouts and Zod validation.
+  - `gemini.ts`: Server-side `@google/genai` (`gemini-2.5-flash`) integration with 15s timeouts, separated `systemInstruction`, structured JSON output validated by Zod, 15-minute plan caching (bypassable via `forceRefresh: true`), and resilient deterministic fallback when `GEMINI_API_KEY` is absent or upstream JSON fails validation.
+- **`src/app/api/`**: Rate-limited, Zod-validated Route Handlers (`/api/health`, `/api/geocode`, `/api/air-quality`, `/api/plan`, `/api/assistant`) with explicit `Cache-Control` headers (`no-store` on GenAI/health/error/refresh responses; `public, max-age=300, stale-while-revalidate=60` on AQI/geocode).
+- **`src/components/`**: Accessible React components (`AppHeader`, `AppFooter`, `CitySearch`, `AirQualityDashboard`, `SmogChartLazy`, `ProfileForm`, `ImpactSimulator`, `ActionPlanView`, `CommunityAdvisoryCard`, `ImpactCard`, `AssistantChat`).
 
 ## Local Setup
 
@@ -37,17 +38,18 @@ BreatheWise is a GenAI-powered web application that helps families and communiti
 ## Security Design
 
 - **Zero Client Secret Exposure**: `GEMINI_API_KEY` is read exclusively on the server (`src/lib/env.ts`).
+- **Streaming Body Caps & Content-Type Enforcement**: `readJsonWithLimit` streams request bodies with `ReadableStream.getReader()`, immediately cancelling and returning `413` if bytes exceed 64 KB, and returns `415` for non-JSON `Content-Type`.
 - **Strict Input & Output Validation**: Every query parameter, JSON body, external API response, and Gemini output is validated with strict Zod schemas.
-- **Prompt Injection Defense**: User chat messages are sanitized, length-bounded (max 500 chars), checked for override patterns, and strictly separated from `systemInstruction`.
-- **Rate Limiting & SSRF/Timeout Protection**: Sliding-window rate limiting on all `/api/*` routes, allowlisted external URLs built via `URL`/`URLSearchParams`, and 8-second `AbortController` timeouts.
-- **HTTP Security Headers**: Configured in `next.config.ts` (`Content-Security-Policy`, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`).
+- **Prompt Injection Defense**: User chat messages and every turn in `history` are sanitized, bounded, checked for override patterns, and strictly separated from `systemInstruction`.
+- **Rate Limiting & SSRF/Timeout Protection**: Sliding-window rate limiting on all `/api/*` routes, allowlisted `ALLOWED_UPSTREAM_HOSTS`, and `AbortController` / `Promise.race` timeouts.
+- **HTTP Security Headers**: Configured in `next.config.ts` (`Content-Security-Policy` without `'unsafe-eval'` in production, `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`).
 
 ## Accessibility (WCAG 2.1 AA)
 
-- Skip-to-main-content link, semantic landmarks (`header`, `nav`, `main`, `section`, `footer`), and strict `h1 → h2 → h3` hierarchy.
-- Full keyboard navigation across combobox city search, mode toggles, checkboxes, and chat.
-- Color-blind safe AQI indicators pairing color badges with icons and explicit severity labels.
-- `aria-live="polite"` regions for AQI updates, impact simulator recalculations, and AI replies, plus an accessible hourly data table toggle alongside the 24-hour SVG chart.
+- Skip-to-main-content link targeting focusable `<main id="main-content" tabIndex={-1}>`, semantic landmarks, and strict `h1 → h2 → h3` hierarchy.
+- Full keyboard navigation across combobox city search (with click/focus-outside dismissal), mode toggles, checkboxes, and chat.
+- Color-blind safe AQI indicators pairing color badges with icons and explicit severity labels, plus Y-axis ticks and diamond `"Best window"` markers on the 24-hour SVG chart.
+- Scoped `aria-live="polite"` status regions for AQI updates, impact simulator updates, clipboard copy confirmation, and assistant replies.
 - Verified with `eslint-plugin-jsx-a11y` (strict) and `vitest-axe` (`axe-core`).
 
 ## Verification Commands
@@ -55,6 +57,7 @@ BreatheWise is a GenAI-powered web application that helps families and communiti
 ```bash
 npm run typecheck
 npm run lint
+npm run format:check
 npm run test:coverage
 npm audit --audit-level=high
 npm run build

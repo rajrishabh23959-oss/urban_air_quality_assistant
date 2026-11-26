@@ -484,9 +484,16 @@ export async function generateAssistantReply(req: AssistantRequest): Promise<Ass
     throw new Error("Gemini returned an empty response for assistant");
   }
 
-  const parsedJson: unknown = JSON.parse(stripMarkdownFences(rawText));
-  return AssistantResponseSchema.parse({
-    ...(typeof parsedJson === "object" && parsedJson !== null ? parsedJson : {}),
-    source: "gemini",
-  });
+  try {
+    const parsedJson: unknown = JSON.parse(stripMarkdownFences(rawText));
+    return AssistantResponseSchema.parse({
+      ...(typeof parsedJson === "object" && parsedJson !== null ? parsedJson : {}),
+      source: "gemini",
+    });
+  } catch (error) {
+    logger.warn("Gemini assistant response validation failed; using deterministic fallback", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return buildDeterministicFallbackAssistant(req);
+  }
 }

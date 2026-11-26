@@ -30,15 +30,30 @@ export function ImpactSimulator({
   }, [plan, selectedIds, currentPm25, profile]);
 
   if (!summary) {
-    return null;
+    return (
+      <section
+        aria-labelledby="simulator-heading"
+        className="space-y-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
+        <h2 id="simulator-heading" className="text-lg font-bold text-slate-900">
+          Interactive Direct-Impact Simulator
+        </h2>
+        <p className="text-xs text-slate-700">
+          Preparing your personalized health and emission impact metrics...
+        </p>
+      </section>
+    );
   }
 
   return (
     <section
       aria-labelledby="simulator-heading"
-      aria-live="polite"
       className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
+      <p className="sr-only" role="status" aria-live="polite">
+        {`${summary.selectedCount} of ${summary.totalCount} habits active: ${summary.exposureReductionPercent}% exposure reduction, ${summary.weeklyCo2eSavedKg} kg CO2e saved per week.`}
+      </p>
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 id="simulator-heading" className="text-lg font-bold text-slate-900">
@@ -78,8 +93,10 @@ export function ImpactSimulator({
             {summary.exposureReductionPercent}%
           </p>
           <p className="mt-1 text-xs text-emerald-900">
-            ~{summary.personalPm25ReductionUgPerDay} µg/day PM2.5 avoided{" "}
-            {profile.mode === "family" ? `(for ${profile.householdSize}-member home)` : ""}
+            ~{summary.personalPm25ReductionUgPerDay} µg/day per person
+            {profile.mode === "family"
+              ? ` • ~${summary.householdPm25ReductionUgPerDay} µg/day across ${summary.householdSize} ${summary.householdSize === 1 ? "member" : "members"}`
+              : ""}
           </p>
         </div>
 

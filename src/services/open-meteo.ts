@@ -106,14 +106,19 @@ function safeMetric(value: number | null | undefined): number {
 /**
  * Fetches live and 24-hour hourly air quality data from Open-Meteo with 10-minute caching.
  */
-export async function fetchAirQualitySnapshot(location: Location): Promise<AirQualitySnapshot> {
+export async function fetchAirQualitySnapshot(
+  location: Location,
+  forceRefresh = false,
+): Promise<AirQualitySnapshot> {
   const cacheKey = `${location.latitude.toFixed(2)},${location.longitude.toFixed(2)}`;
-  const cached = airQualityCache.get(cacheKey);
-  if (cached) {
-    return {
-      ...cached,
-      location: { ...location, timezone: cached.location.timezone },
-    };
+  if (!forceRefresh) {
+    const cached = airQualityCache.get(cacheKey);
+    if (cached) {
+      return {
+        ...cached,
+        location: { ...location, timezone: cached.location.timezone },
+      };
+    }
   }
 
   const url = new URL(AIR_QUALITY_BASE_URL);

@@ -45,6 +45,10 @@ describe("BreatheWiseApp integration", () => {
     await user.click(screen.getByRole("button", { name: /Refresh AQI/i }));
     await user.click(screen.getByRole("button", { name: /Refresh AI Plan/i }));
 
+    await waitFor(() => {
+      expect(screen.getByText("198")).toBeInTheDocument();
+    });
+
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
@@ -103,6 +107,27 @@ describe("BreatheWiseApp integration", () => {
 
     await user.click(screen.getByRole("button", { name: /Community Mode/i }));
     await user.click(screen.getByRole("button", { name: "Lucknow" }));
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Plan rate limited/i)).toBeInTheDocument();
+      },
+      { timeout: 1000 },
+    );
+
+    // Also test Refresh AI Plan button when plan failed
+    await user.click(screen.getByRole("button", { name: /Refresh AI Plan/i }));
     window.localStorage.clear();
+  });
+
+  it("ignores AbortError on rapid location/plan cancellations", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError")));
+    render(<BreatheWiseApp />);
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
+  it("handles non-Error rejection in AQI fetch gracefully", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue("network-down"));
+    render(<BreatheWiseApp />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Failed to load air quality/i);
   });
 });

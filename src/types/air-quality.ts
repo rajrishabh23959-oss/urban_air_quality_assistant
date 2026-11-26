@@ -104,6 +104,7 @@ export const AirQualityQuerySchema = z
     name: z.string().trim().min(1).max(120).default("Selected Location"),
     country: z.string().trim().min(1).max(100).default("Unknown"),
     admin1: z.string().trim().max(100).optional(),
+    refresh: z.enum(["true", "false"]).optional(),
   })
   .strict();
 

@@ -48,6 +48,9 @@ describe("/api/air-quality", () => {
     );
     const res1 = await GET(req1);
     expect(res1.status).toBe(200);
+    expect(res1.headers.get("Cache-Control")).toBe(
+      "public, max-age=300, stale-while-revalidate=60",
+    );
     const body1 = (await res1.json()) as { current: { usAqi: number }; tierInfo: { tier: string } };
     expect(body1.current.usAqi).toBe(191);
     expect(body1.tierInfo.tier).toBe("unhealthy");
@@ -59,6 +62,15 @@ describe("/api/air-quality", () => {
     const res2 = await GET(req2);
     expect(res2.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // refresh=true bypasses cache and sets Cache-Control: no-store
+    const req3 = new Request(
+      "http://localhost:3000/api/air-quality?lat=28.6139&lon=77.209&name=New+Delhi&country=India&refresh=true",
+    );
+    const res3 = await GET(req3);
+    expect(res3.status).toBe(200);
+    expect(res3.headers.get("Cache-Control")).toBe("no-store");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns 400 on invalid coordinates", async () => {
