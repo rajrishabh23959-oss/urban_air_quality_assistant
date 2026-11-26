@@ -53,5 +53,10 @@ describe("SlidingWindowRateLimiter", () => {
     expect(
       getClientIdentifier(new Request("http://localhost", { headers: { "x-real-ip": "   " } })),
     ).toBe("anonymous-local");
+    expect(
+      getClientIdentifier(
+        new Request("http://localhost", { headers: { "x-forwarded-for": ";;;" } }),
+      ),
+    ).toBe("anonymous-local");
   });
 });

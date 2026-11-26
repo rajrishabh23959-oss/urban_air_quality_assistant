@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 import { describe, expect, it, vi } from "vitest";
 import { CitySearch } from "@/components/CitySearch";
-import { SMOG_HOTSPOT_PRESETS } from "@/lib/aqi";
+import { SMOG_HOTSPOT_PRESETS } from "@/lib/constants";
 
 describe("CitySearch", () => {
   it("supports hotspot presets, debounced search, keyboard selection, and geolocation with zero axe violations", async () => {
@@ -131,7 +131,7 @@ describe("CitySearch", () => {
     await user.click(document.body);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
-    // Empty search results & Escape when closed
+    // Empty search results announces "No matching cities found" & Escape when closed
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -141,6 +141,7 @@ describe("CitySearch", () => {
     );
     await user.clear(input);
     await user.type(input, "Xyz");
+    expect(await screen.findByText(/No matching cities found/i)).toBeInTheDocument();
     await user.keyboard("{Escape}");
 
     // Clicking option directly and pressing Escape while open

@@ -2,27 +2,28 @@
 
 import { useId } from "react";
 import { Building2, Users } from "lucide-react";
-import type {
-  CommuteType,
-  CookingFuel,
-  HomeType,
-  HouseholdProfile,
-  VentilationType,
-  VulnerableGroup,
+import {
+  COMMUNITY_SCALE_OPTIONS,
+  COMMUTE_OPTIONS,
+  COOKING_FUEL_OPTIONS,
+  HOME_TYPE_OPTIONS,
+  HOUSEHOLD_SIZE_OPTIONS,
+  VENTILATION_OPTIONS,
+  VULNERABLE_OPTIONS,
+} from "@/lib/profile-options";
+import {
+  CommuteTypeSchema,
+  CookingFuelSchema,
+  HomeTypeSchema,
+  VentilationTypeSchema,
+  type HouseholdProfile,
+  type VulnerableGroup,
 } from "@/types";
 
 interface ProfileFormProps {
   profile: HouseholdProfile;
   onChange: (next: HouseholdProfile) => void;
 }
-
-const VULNERABLE_OPTIONS: { value: VulnerableGroup; label: string }[] = [
-  { value: "infants", label: "Infants / Children" },
-  { value: "elderly", label: "Elderly (60+)" },
-  { value: "asthma", label: "Asthma / Respiratory" },
-  { value: "pregnant", label: "Pregnant Members" },
-  { value: "outdoor_workers", label: "Outdoor Workers" },
-];
 
 export function ProfileForm({ profile, onChange }: ProfileFormProps) {
   const baseId = useId();
@@ -68,7 +69,6 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
             <Users aria-hidden="true" className="h-4 w-4" />
             <span>Family Mode</span>
           </button>
-
           <button
             type="button"
             onClick={() => onChange({ ...profile, mode: "community" })}
@@ -99,7 +99,7 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
             onChange={(e) => onChange({ ...profile, householdSize: Number(e.target.value) })}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => (
+            {HOUSEHOLD_SIZE_OPTIONS.map((count) => (
               <option key={count} value={count}>
                 {count} {count === 1 ? "member" : "members"}
               </option>
@@ -120,10 +120,11 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
             onChange={(e) => onChange({ ...profile, communityHouseholds: Number(e.target.value) })}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
-            <option value={25}>25 households (Small apartment block)</option>
-            <option value={50}>50 households (RWA / School grade)</option>
-            <option value={100}>100 households (Neighborhood cluster)</option>
-            <option value={250}>250 households (Large society / campus)</option>
+            {COMMUNITY_SCALE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
       )}
@@ -133,23 +134,20 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           Vulnerable Members
         </legend>
         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          {VULNERABLE_OPTIONS.map((opt) => {
-            const checked = profile.vulnerableGroups.includes(opt.value);
-            return (
-              <label
-                key={opt.value}
-                className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleVulnerable(opt.value)}
-                  className="h-4 w-4 rounded border-slate-300 text-sky-700 focus-visible:ring-sky-700"
-                />
-                <span>{opt.label}</span>
-              </label>
-            );
-          })}
+          {VULNERABLE_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+            >
+              <input
+                type="checkbox"
+                checked={profile.vulnerableGroups.includes(opt.value)}
+                onChange={() => toggleVulnerable(opt.value)}
+                className="h-4 w-4 rounded border-slate-300 text-sky-700 focus-visible:ring-sky-700"
+              />
+              <span>{opt.label}</span>
+            </label>
+          ))}
         </div>
       </fieldset>
 
@@ -164,14 +162,19 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           <select
             id={`${baseId}-commute`}
             value={profile.commute}
-            onChange={(e) => onChange({ ...profile, commute: e.target.value as CommuteType })}
+            onChange={(e) => {
+              const parsed = CommuteTypeSchema.safeParse(e.target.value);
+              if (parsed.success) {
+                onChange({ ...profile, commute: parsed.data });
+              }
+            }}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
-            <option value="petrol_car">Petrol / Diesel Car</option>
-            <option value="two_wheeler">Two-Wheeler</option>
-            <option value="public_transit">Public Transit (Metro / Bus)</option>
-            <option value="walk_cycle">Walking / Cycling</option>
-            <option value="wfh">Work / Study from Home</option>
+            {COMMUTE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -185,12 +188,19 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           <select
             id={`${baseId}-cooking`}
             value={profile.cookingFuel}
-            onChange={(e) => onChange({ ...profile, cookingFuel: e.target.value as CookingFuel })}
+            onChange={(e) => {
+              const parsed = CookingFuelSchema.safeParse(e.target.value);
+              if (parsed.success) {
+                onChange({ ...profile, cookingFuel: parsed.data });
+              }
+            }}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
-            <option value="lpg">LPG / Piped Gas</option>
-            <option value="induction">Electric / Induction</option>
-            <option value="biomass_other">Biomass / Solid Fuel</option>
+            {COOKING_FUEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -201,11 +211,19 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           <select
             id={`${baseId}-home`}
             value={profile.homeType}
-            onChange={(e) => onChange({ ...profile, homeType: e.target.value as HomeType })}
+            onChange={(e) => {
+              const parsed = HomeTypeSchema.safeParse(e.target.value);
+              if (parsed.success) {
+                onChange({ ...profile, homeType: parsed.data });
+              }
+            }}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
-            <option value="apartment">Apartment / Flat</option>
-            <option value="independent_house">Independent House</option>
+            {HOME_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -216,14 +234,19 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           <select
             id={`${baseId}-vent`}
             value={profile.ventilation}
-            onChange={(e) =>
-              onChange({ ...profile, ventilation: e.target.value as VentilationType })
-            }
+            onChange={(e) => {
+              const parsed = VentilationTypeSchema.safeParse(e.target.value);
+              if (parsed.success) {
+                onChange({ ...profile, ventilation: parsed.data });
+              }
+            }}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
-            <option value="cross_ventilation">Cross-Ventilation Windows</option>
-            <option value="exhaust_only">Kitchen/Bath Exhaust Only</option>
-            <option value="sealed_ac">Sealed / AC Recirculation</option>
+            {VENTILATION_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>

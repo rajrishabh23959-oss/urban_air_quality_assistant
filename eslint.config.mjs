@@ -9,17 +9,19 @@ const eslintConfig = defineConfig([
   {
     rules: {
       ...jsxA11y.flatConfigs.strict.rules,
+      "jsx-a11y/no-noninteractive-tabindex": ["error", { roles: ["tabpanel", "region", "log"] }],
       "@typescript-eslint/no-explicit-any": "error",
       "no-console": "error",
     },
   },
-  globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
-    "coverage/**",
-    "next-env.d.ts",
-  ]),
+  {
+    files: ["**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  globalIgnores([".next/**", "out/**", "build/**", "coverage/**", "next-env.d.ts"]),
 ]);
 
 export default eslintConfig;

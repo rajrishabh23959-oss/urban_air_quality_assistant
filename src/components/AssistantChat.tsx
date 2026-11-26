@@ -2,14 +2,9 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { MessageSquare, Send } from "lucide-react";
-import type { AirQualitySnapshot, AssistantResponse, HouseholdProfile } from "@/types";
-
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  suggestedFollowUps?: string[];
-}
+import { fetchAssistantApi } from "@/lib/api-client";
+import type { AirQualitySnapshot, HouseholdProfile } from "@/types";
+import { ChatMessageList, type ChatMessage } from "./ChatMessageList";
 
 interface AssistantChatProps {
   airQuality: AirQualitySnapshot | null;
@@ -63,22 +58,15 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
     abortRef.current = controller;
 
     try {
-      const res = await fetch("/api/assistant", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await fetchAssistantApi(
+        {
           message: trimmed,
           airQuality,
           profile,
           history: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
-        }),
-        signal: controller.signal,
-      });
-
-      const data = (await res.json()) as Partial<AssistantResponse> & { error?: string };
-      if (!res.ok || !data.reply) {
-        throw new Error(data.error ?? "Assistant request failed.");
-      }
+        },
+        controller.signal,
+      );
 
       msgCounterRef.current += 1;
       setMessages([
@@ -87,7 +75,7 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
           id: `a-${msgCounterRef.current}`,
           role: "assistant",
           content: data.reply,
-          suggestedFollowUps: data.suggestedFollowUps ?? [],
+          suggestedFollowUps: data.suggestedFollowUps,
         },
       ]);
     } catch (err) {
@@ -141,36 +129,7 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
         ))}
       </div>
 
-      <div
-        role="log"
-        aria-label="Conversation history"
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-        tabIndex={0}
-        className="max-h-72 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
-        aria-live="polite"
-      >
-        {messages.length === 0 ? (
-          <p className="text-xs text-slate-600">
-            Ask a question below or pick a quick prompt to get tailored guidance.
-          </p>
-        ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`rounded-xl p-3 text-sm leading-relaxed ${
-                msg.role === "user"
-                  ? "ml-6 bg-sky-900 text-white"
-                  : "mr-6 border border-slate-200 bg-white text-slate-900"
-              }`}
-            >
-              <p className="mb-1 text-[11px] font-bold uppercase opacity-75">
-                {msg.role === "user" ? "You" : "BreatheWise AI"}
-              </p>
-              <div className="space-y-1 whitespace-pre-line">{msg.content}</div>
-            </div>
-          ))
-        )}
-      </div>
+      <ChatMessageList messages={messages} />
 
       {followUps.length > 0 && (
         <div

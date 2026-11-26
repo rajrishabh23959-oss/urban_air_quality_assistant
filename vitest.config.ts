@@ -25,10 +25,15 @@ export default defineConfig({
         "src/services/**/*.ts",
         "src/types/**/*.ts",
         "src/hooks/**/*.ts",
+        "src/app/*.tsx",
         "src/app/api/**/*.ts",
         "src/components/**/*.tsx",
       ],
-      exclude: ["src/**/*.test.{ts,tsx}", "src/components/SmogChartLazy.tsx"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/components/SmogChartLazy.tsx",
+        "src/app/layout.tsx",
+      ],
       thresholds: {
         statements: 90,
         branches: 90,

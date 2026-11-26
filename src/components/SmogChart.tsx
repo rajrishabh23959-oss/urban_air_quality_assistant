@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import { Table } from "lucide-react";
+import { formatHourLabel } from "@/lib/aqi";
 import type { HourlyPoint, VentilationWindow } from "@/types";
 
 interface SmogChartProps {
   hourly24h: HourlyPoint[];
   ventilationWindow: VentilationWindow;
-}
-
-function formatHour(isoTime: string): string {
-  const match = /T(\d{2}:\d{2})/.exec(isoTime);
-  return match?.[1] ?? isoTime.slice(11, 16);
 }
 
 export function SmogChart({ hourly24h, ventilationWindow }: SmogChartProps) {
@@ -99,7 +95,7 @@ export function SmogChart({ hourly24h, ventilationWindow }: SmogChartProps) {
             points={polylinePoints}
           />
           {points.map(({ x, y, point }, idx) => {
-            const hour = formatHour(point.time);
+            const hour = formatHourLabel(point.time);
             const isVentStart = hour === ventilationWindow.startHour;
             const isVentHour = isVentStart || hour === ventilationWindow.endHour;
             if (!isVentHour && idx % 4 !== 0 && idx !== points.length - 1) {
@@ -149,7 +145,6 @@ export function SmogChart({ hourly24h, ventilationWindow }: SmogChartProps) {
         <div
           role="region"
           aria-label="24-hour hourly air quality data table"
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           className="max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
         >
@@ -174,7 +169,7 @@ export function SmogChart({ hourly24h, ventilationWindow }: SmogChartProps) {
             <tbody className="divide-y divide-slate-100">
               {hourly24h.map((row) => (
                 <tr key={row.time}>
-                  <td className="px-3 py-1.5 font-mono">{formatHour(row.time)}</td>
+                  <td className="px-3 py-1.5 font-mono">{formatHourLabel(row.time)}</td>
                   <td className="px-3 py-1.5">{row.pm25}</td>
                   <td className="px-3 py-1.5">{row.pm10}</td>
                   <td className="px-3 py-1.5">{row.usAqi}</td>

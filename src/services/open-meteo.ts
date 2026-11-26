@@ -164,11 +164,11 @@ export async function fetchAirQualitySnapshot(
     });
   }
 
-  if (hourly24h.length === 0) {
+  const firstHourly = hourly24h[0];
+  if (!firstHourly) {
     throw new UpstreamServiceError("Open-Meteo returned no hourly air quality points");
   }
 
-  const fallbackCurrent = hourly24h[0]!;
   const current: HourlyPoint = data.current
     ? {
         time: data.current.time,
@@ -181,7 +181,7 @@ export async function fetchAirQualitySnapshot(
         usAqi: Math.round(safeMetric(data.current.us_aqi)),
         europeanAqi: Math.round(safeMetric(data.current.european_aqi)),
       }
-    : fallbackCurrent;
+    : firstHourly;
 
   const snapshot: AirQualitySnapshot = AirQualitySnapshotSchema.parse({
     location: {

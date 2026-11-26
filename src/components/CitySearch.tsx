@@ -2,8 +2,9 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { LocateFixed, MapPin, Search } from "lucide-react";
-import { SMOG_HOTSPOT_PRESETS } from "@/lib/aqi";
+import { searchCitiesApi } from "@/lib/api-client";
 import type { Location } from "@/types";
+import { HotspotPresets } from "./HotspotPresets";
 
 interface CitySearchProps {
   selectedLocation: Location;
@@ -25,7 +26,11 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
 
   useEffect(() => {
     function handleOutsideInteraction(event: MouseEvent | FocusEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        event.target instanceof Node &&
+        !containerRef.current.contains(event.target)
+      ) {
         setIsOpen(false);
         setActiveIndex(-1);
       }
@@ -50,14 +55,8 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
       setIsSearching(true);
       setSearchError(null);
       try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(trimmed)}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          throw new Error("Could not search cities");
-        }
-        const data = (await res.json()) as { results?: Location[] };
-        setResults(data.results ?? []);
+        const matches = await searchCitiesApi(trimmed, controller.signal);
+        setResults(matches);
         setIsOpen(true);
         setActiveIndex(-1);
       } catch (err) {
@@ -101,9 +100,7 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
           timezone: "auto",
         });
       },
-      () => {
-        setSearchError("Location permission denied. Choose a city or hotspot preset below.");
-      },
+      () => setSearchError("Location permission denied. Choose a city or hotspot preset below."),
       { timeout: 8000 },
     );
   }
@@ -133,6 +130,9 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
       setActiveIndex(-1);
     }
   }
+
+  const showNoResults =
+    !isSearching && !searchError && isOpen && results.length === 0 && query.trim().length >= 2;
 
   return (
     <div ref={containerRef} className="space-y-3">
@@ -222,37 +222,18 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
           Searching cities...
         </p>
       )}
-
+      {showNoResults && (
+        <p className="text-xs text-slate-700" aria-live="polite">
+          No matching cities found. Try another city name or choose a hotspot preset.
+        </p>
+      )}
       {searchError && (
         <p id={errorId} className="text-xs font-medium text-red-700" role="alert">
           {searchError}
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-2" aria-label="Winter smog hotspot presets">
-        <span className="text-xs font-semibold tracking-wide text-slate-700 uppercase">
-          Hotspot presets:
-        </span>
-        {SMOG_HOTSPOT_PRESETS.map((preset) => {
-          const isSelected =
-            preset.name === selectedLocation.name && preset.country === selectedLocation.country;
-          return (
-            <button
-              key={preset.name}
-              type="button"
-              onClick={() => handleSelect(preset)}
-              aria-pressed={isSelected}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2 ${
-                isSelected
-                  ? "border-sky-800 bg-sky-800 text-white"
-                  : "border-slate-300 bg-white text-slate-800 hover:bg-slate-100"
-              }`}
-            >
-              {preset.name}
-            </button>
-          );
-        })}
-      </div>
+      <HotspotPresets selectedLocation={selectedLocation} onSelect={handleSelect} />
     </div>
   );
 }

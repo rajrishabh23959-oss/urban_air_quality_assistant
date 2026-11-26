@@ -1,58 +1,12 @@
-import type { AqiTierInfo, HourlyPoint, InversionRisk, Location, VentilationWindow } from "@/types";
+import type { AqiTierInfo, HourlyPoint, InversionRisk, VentilationWindow } from "@/types";
 
 /**
- * Curated winter smog hotspot cities for one-click selection.
+ * Extracts HH:MM hour label from an ISO-8601 timestamp string.
  */
-export const SMOG_HOTSPOT_PRESETS: readonly Location[] = [
-  {
-    name: "New Delhi",
-    country: "India",
-    admin1: "Delhi",
-    latitude: 28.6139,
-    longitude: 77.209,
-    timezone: "Asia/Kolkata",
-  },
-  {
-    name: "Lucknow",
-    country: "India",
-    admin1: "Uttar Pradesh",
-    latitude: 26.8467,
-    longitude: 80.9462,
-    timezone: "Asia/Kolkata",
-  },
-  {
-    name: "Kolkata",
-    country: "India",
-    admin1: "West Bengal",
-    latitude: 22.5726,
-    longitude: 88.3639,
-    timezone: "Asia/Kolkata",
-  },
-  {
-    name: "Lahore",
-    country: "Pakistan",
-    admin1: "Punjab",
-    latitude: 31.5204,
-    longitude: 74.3587,
-    timezone: "Asia/Karachi",
-  },
-  {
-    name: "Beijing",
-    country: "China",
-    admin1: "Beijing",
-    latitude: 39.9042,
-    longitude: 116.4074,
-    timezone: "Asia/Shanghai",
-  },
-  {
-    name: "London",
-    country: "United Kingdom",
-    admin1: "England",
-    latitude: 51.5072,
-    longitude: -0.1276,
-    timezone: "Europe/London",
-  },
-];
+export function formatHourLabel(isoTime: string): string {
+  const match = /T(\d{2}:\d{2})/.exec(isoTime);
+  return match?.[1] ?? isoTime.slice(0, 16);
+}
 
 /**
  * Maps a numeric US AQI value to its accessible severity tier, label, and styling tokens.
@@ -71,7 +25,6 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
       borderClass: "border-emerald-300",
     };
   }
-
   if (safeAqi <= 100) {
     return {
       tier: "moderate",
@@ -83,7 +36,6 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
       borderClass: "border-amber-300",
     };
   }
-
   if (safeAqi <= 150) {
     return {
       tier: "sensitive",
@@ -94,7 +46,6 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
       borderClass: "border-orange-300",
     };
   }
-
   if (safeAqi <= 200) {
     return {
       tier: "unhealthy",
@@ -106,7 +57,6 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
       borderClass: "border-red-300",
     };
   }
-
   if (safeAqi <= 300) {
     return {
       tier: "very_unhealthy",
@@ -130,17 +80,12 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
   };
 }
 
-function extractHourLabel(isoTime: string): string {
-  const match = /T(\d{2}:\d{2})/.exec(isoTime);
-  return match?.[1] ?? isoTime.slice(0, 16);
-}
-
 /**
  * Evaluates winter thermal inversion & smog trapping risk from the 24-hour PM2.5 curve.
- * Cold overnight/early-morning boundary layers trap PM2.5 near ground level, spiking evening/morning ratios.
  */
 export function assessInversionRisk(hourly24h: readonly HourlyPoint[]): InversionRisk {
-  if (hourly24h.length === 0) {
+  const firstPoint = hourly24h[0];
+  if (!firstPoint) {
     return {
       level: "low",
       label: "Low Inversion Risk",
@@ -149,8 +94,8 @@ export function assessInversionRisk(hourly24h: readonly HourlyPoint[]): Inversio
     };
   }
 
-  let peakPoint = hourly24h[0]!;
-  let minPoint = hourly24h[0]!;
+  let peakPoint = firstPoint;
+  let minPoint = firstPoint;
   for (const point of hourly24h) {
     if (point.pm25 > peakPoint.pm25) {
       peakPoint = point;
@@ -160,7 +105,7 @@ export function assessInversionRisk(hourly24h: readonly HourlyPoint[]): Inversio
     }
   }
 
-  const peakHour = extractHourLabel(peakPoint.time);
+  const peakHour = formatHourLabel(peakPoint.time);
   const spread = peakPoint.pm25 - minPoint.pm25;
   const ratio = minPoint.pm25 > 0 ? peakPoint.pm25 / minPoint.pm25 : peakPoint.pm25 > 20 ? 3 : 1;
 
@@ -172,7 +117,6 @@ export function assessInversionRisk(hourly24h: readonly HourlyPoint[]): Inversio
       peakWindow: `Around ${peakHour}`,
     };
   }
-
   if (peakPoint.pm25 >= 55 || (peakPoint.pm25 >= 35 && ratio >= 1.5)) {
     return {
       level: "high",
@@ -181,7 +125,6 @@ export function assessInversionRisk(hourly24h: readonly HourlyPoint[]): Inversio
       peakWindow: `Around ${peakHour}`,
     };
   }
-
   if (peakPoint.pm25 >= 30 || spread >= 15) {
     return {
       level: "moderate",
@@ -203,7 +146,8 @@ export function assessInversionRisk(hourly24h: readonly HourlyPoint[]): Inversio
  * Finds the cleanest 2-hour contiguous window in the next 24 hours for brief home ventilation.
  */
 export function findSafeVentilationWindow(hourly24h: readonly HourlyPoint[]): VentilationWindow {
-  if (hourly24h.length === 0) {
+  const firstOnly = hourly24h[0];
+  if (!firstOnly) {
     return {
       startHour: "13:00",
       endHour: "15:00",
@@ -215,45 +159,43 @@ export function findSafeVentilationWindow(hourly24h: readonly HourlyPoint[]): Ve
   }
 
   if (hourly24h.length === 1) {
-    const only = hourly24h[0]!;
-    const hour = extractHourLabel(only.time);
-    const isSafe = only.usAqi <= 100 && only.pm25 <= 35;
+    const hour = formatHourLabel(firstOnly.time);
+    const isSafe = firstOnly.usAqi <= 100 && firstOnly.pm25 <= 35;
     return {
       startHour: hour,
       endHour: hour,
-      avgPm25: Math.round(only.pm25),
-      avgAqi: Math.round(only.usAqi),
+      avgPm25: Math.round(firstOnly.pm25),
+      avgAqi: Math.round(firstOnly.usAqi),
       isSafe,
       recommendation: isSafe
-        ? `Brief ventilation is safe around ${hour} (PM2.5 ~${Math.round(only.pm25)} µg/m³).`
-        : `Air remains polluted (~${Math.round(only.pm25)} µg/m³). Rely on indoor filtration instead of opening windows.`,
+        ? `Brief ventilation is safe around ${hour} (PM2.5 ~${Math.round(firstOnly.pm25)} µg/m³).`
+        : `Air remains polluted (~${Math.round(firstOnly.pm25)} µg/m³). Rely on indoor filtration instead of opening windows.`,
     };
   }
 
-  let bestIndex = 0;
+  let bestStart = firstOnly;
+  let bestEnd = hourly24h[1] ?? firstOnly;
   let bestScore = Number.POSITIVE_INFINITY;
 
   for (let i = 0; i < hourly24h.length - 1; i += 1) {
-    const first = hourly24h[i]!;
-    const second = hourly24h[i + 1]!;
+    const first = hourly24h[i];
+    const second = hourly24h[i + 1];
+    if (!first || !second) {
+      continue;
+    }
     const avgPm25 = (first.pm25 + second.pm25) / 2;
     if (avgPm25 < bestScore) {
       bestScore = avgPm25;
-      bestIndex = i;
+      bestStart = first;
+      bestEnd = second;
     }
   }
 
-  const startPoint = hourly24h[bestIndex]!;
-  const endPoint = hourly24h[bestIndex + 1]!;
-  const avgPm25 = Math.round((startPoint.pm25 + endPoint.pm25) / 2);
-  const avgAqi = Math.round((startPoint.usAqi + endPoint.usAqi) / 2);
-  const startHour = extractHourLabel(startPoint.time);
-  const endHour = extractHourLabel(endPoint.time);
+  const avgPm25 = Math.round((bestStart.pm25 + bestEnd.pm25) / 2);
+  const avgAqi = Math.round((bestStart.usAqi + bestEnd.usAqi) / 2);
+  const startHour = formatHourLabel(bestStart.time);
+  const endHour = formatHourLabel(bestEnd.time);
   const isSafe = avgAqi <= 120 && avgPm25 <= 45;
-
-  const recommendation = isSafe
-    ? `Best natural ventilation window is ${startHour}–${endHour} (avg PM2.5 ${avgPm25} µg/m³, US AQI ${avgAqi}). Cross-ventilate for 15–20 minutes.`
-    : `Cleanest window is ${startHour}–${endHour}, but PM2.5 stays elevated (${avgPm25} µg/m³, US AQI ${avgAqi}). Keep windows sealed and use HEPA/DIY filtration; ventilate only 5 min if CO2 feels stuffy.`;
 
   return {
     startHour,
@@ -261,6 +203,8 @@ export function findSafeVentilationWindow(hourly24h: readonly HourlyPoint[]): Ve
     avgPm25,
     avgAqi,
     isSafe,
-    recommendation,
+    recommendation: isSafe
+      ? `Best natural ventilation window is ${startHour}–${endHour} (avg PM2.5 ${avgPm25} µg/m³, US AQI ${avgAqi}). Cross-ventilate for 15–20 minutes.`
+      : `Cleanest window is ${startHour}–${endHour}, but PM2.5 stays elevated (${avgPm25} µg/m³, US AQI ${avgAqi}). Keep windows sealed and use HEPA/DIY filtration; ventilate only 5 min if CO2 feels stuffy.`,
   };
 }

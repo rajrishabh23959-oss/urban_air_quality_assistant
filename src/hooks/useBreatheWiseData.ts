@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SMOG_HOTSPOT_PRESETS } from "@/lib/aqi";
+import { fetchActionPlanApi, fetchAirQualityApi } from "@/lib/api-client";
+import { DEFAULT_LOCATION } from "@/lib/constants";
 import { flattenPlanActions } from "@/lib/impact-calculator";
 import {
   DEFAULT_PROFILE,
@@ -19,7 +20,7 @@ const PROFILE_STORAGE_KEY = "breathewise_profile_v1";
  * and habit simulator selection state with AbortController race-condition guards.
  */
 export function useBreatheWiseData() {
-  const [location, setLocation] = useState<Location>(SMOG_HOTSPOT_PRESETS[0]!);
+  const [location, setLocation] = useState<Location>(DEFAULT_LOCATION);
   const [profile, setProfile] = useState<HouseholdProfile>(DEFAULT_PROFILE);
   const [isProfileHydrated, setIsProfileHydrated] = useState(false);
 
@@ -78,26 +79,7 @@ export function useBreatheWiseData() {
     setAqiError(null);
 
     try {
-      const params = new URLSearchParams({
-        lat: String(target.latitude),
-        lon: String(target.longitude),
-        name: target.name,
-        country: target.country,
-      });
-      if (target.admin1) {
-        params.set("admin1", target.admin1);
-      }
-      if (forceRefresh) {
-        params.set("refresh", "true");
-      }
-
-      const res = await fetch(`/api/air-quality?${params.toString()}`, {
-        signal: controller.signal,
-      });
-      const data = (await res.json()) as AirQualitySnapshot & { error?: string };
-      if (!res.ok) {
-        throw new Error(data.error ?? "Could not load air quality data.");
-      }
+      const data = await fetchAirQualityApi(target, forceRefresh, controller.signal);
       setAirQuality(data);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -130,27 +112,20 @@ export function useBreatheWiseData() {
       setPlanError(null);
 
       try {
-        const res = await fetch("/api/plan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            airQuality: snapshot,
-            profile: currentProfile,
-            ...(forceRefresh ? { forceRefresh: true } : {}),
-          }),
-          signal: controller.signal,
-        });
-        const data = (await res.json()) as ActionPlan & { error?: string };
-        if (!res.ok) {
-          throw new Error(data.error ?? "Unable to generate action plan.");
-        }
-        setPlan(data);
-        const defaultChecked = new Set(
-          flattenPlanActions(data)
-            .slice(0, 3)
-            .map((i) => i.id),
+        const data = await fetchActionPlanApi(
+          snapshot,
+          currentProfile,
+          forceRefresh,
+          controller.signal,
         );
-        setSelectedIds(defaultChecked);
+        setPlan(data);
+        setSelectedIds(
+          new Set(
+            flattenPlanActions(data)
+              .slice(0, 3)
+              .map((i) => i.id),
+          ),
+        );
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
           return;
@@ -210,14 +185,11 @@ export function useBreatheWiseData() {
     setSelectedIds(new Set(flattenPlanActions(plan).map((item) => item.id)));
   }, [plan]);
 
-  const handleClearAll = useCallback(() => {
-    setSelectedIds(new Set());
-  }, []);
-
-  const handleRefreshAqi = useCallback(() => {
-    void loadAirQuality(location, true);
-  }, [location, loadAirQuality]);
-
+  const handleClearAll = useCallback(() => setSelectedIds(new Set()), []);
+  const handleRefreshAqi = useCallback(
+    () => void loadAirQuality(location, true),
+    [location, loadAirQuality],
+  );
   const handleRegeneratePlan = useCallback(() => {
     if (airQuality) {
       void loadPlan(airQuality, profile, true);

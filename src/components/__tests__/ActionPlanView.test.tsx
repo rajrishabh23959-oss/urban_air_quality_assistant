@@ -37,6 +37,7 @@ describe("ActionPlanView", () => {
       />,
     );
 
+    expect(screen.getByText("Offline Fallback Mode")).toBeInTheDocument();
     expect(screen.getByText("1. Low-Emission Daily Routines")).toBeInTheDocument();
     expect(screen.getByText("2. Indoor Air Quality (IAQ) Hacks")).toBeInTheDocument();
     expect(screen.getByText("3. Sustainable Alternatives")).toBeInTheDocument();
@@ -81,6 +82,18 @@ describe("ActionPlanView", () => {
       />,
     );
     expect(container.querySelector("[aria-busy='true']")).toBeInTheDocument();
+
+    rerender(
+      <ActionPlanView
+        plan={{ ...MOCK_PLAN, source: "gemini" }}
+        isLoading={false}
+        error={null}
+        selectedIds={new Set()}
+        onToggleAction={vi.fn()}
+        onRegenerate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Powered by Gemini 2.5 Flash")).toBeInTheDocument();
 
     rerender(
       <ActionPlanView

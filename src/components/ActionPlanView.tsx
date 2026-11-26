@@ -32,9 +32,22 @@ export function ActionPlanView({
     <section aria-labelledby="plan-heading" className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 id="plan-heading" className="text-xl font-bold text-slate-900">
-            GenAI Tailored Action Plan
-          </h2>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 id="plan-heading" className="text-xl font-bold text-slate-900">
+              GenAI Tailored Action Plan
+            </h2>
+            {plan && (
+              <span
+                className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                  plan.source === "gemini"
+                    ? "border-sky-300 bg-sky-100 text-sky-950"
+                    : "border-slate-300 bg-slate-100 text-slate-900"
+                }`}
+              >
+                {plan.source === "gemini" ? "Powered by Gemini 2.5 Flash" : "Offline Fallback Mode"}
+              </span>
+            )}
+          </div>
           {plan && <p className="mt-1 text-sm text-slate-700">{plan.summary}</p>}
         </div>
 

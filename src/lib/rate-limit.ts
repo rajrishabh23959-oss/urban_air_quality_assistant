@@ -85,20 +85,25 @@ export function buildRateLimitHeaders(result: RateLimitResult): Record<string, s
   return headers;
 }
 
+function sanitizeIdentifier(raw: string): string {
+  const cleaned = raw.replace(/[^a-zA-Z0-9.:_-]/g, "").slice(0, 64);
+  return cleaned.length > 0 ? cleaned : "anonymous-local";
+}
+
 /**
- * Extracts a bounded client identifier from incoming request headers.
+ * Extracts a sanitized, bounded client identifier from incoming request headers.
  */
 export function getClientIdentifier(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
     const firstIp = forwarded.split(",")[0]?.trim();
     if (firstIp) {
-      return firstIp.slice(0, 64);
+      return sanitizeIdentifier(firstIp);
     }
   }
   const realIp = request.headers.get("x-real-ip")?.trim();
   if (realIp) {
-    return realIp.slice(0, 64);
+    return sanitizeIdentifier(realIp);
   }
   return "anonymous-local";
 }
