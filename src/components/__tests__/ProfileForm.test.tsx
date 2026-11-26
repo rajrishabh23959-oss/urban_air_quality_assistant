@@ -17,6 +17,9 @@ describe("ProfileForm", () => {
     await user.click(screen.getByRole("button", { name: /Community Mode/i }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ mode: "community" }));
 
+    await user.selectOptions(screen.getByLabelText(/Household Size/i), "6");
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ householdSize: 6 }));
+
     await user.click(screen.getByLabelText(/Elderly \(60\+\)/i));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ vulnerableGroups: ["infants", "asthma", "elderly"] }),
@@ -44,9 +47,7 @@ describe("ProfileForm", () => {
     await user.click(screen.getByLabelText(/We currently have a HEPA air purifier/i));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ hasHepaPurifier: true }));
 
-    rerender(
-      <ProfileForm profile={{ ...MOCK_PROFILE, mode: "community" }} onChange={onChange} />,
-    );
+    rerender(<ProfileForm profile={{ ...MOCK_PROFILE, mode: "community" }} onChange={onChange} />);
     await user.selectOptions(screen.getByLabelText(/Community Scale/i), "100");
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ communityHouseholds: 100 }));
 

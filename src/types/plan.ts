@@ -83,6 +83,7 @@ export const PlanRequestSchema = z
   .object({
     airQuality: AirQualitySnapshotSchema,
     profile: HouseholdProfileSchema,
+    forceRefresh: z.boolean().optional(),
   })
   .strict();
 

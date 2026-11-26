@@ -42,7 +42,8 @@ export const MOCK_AIR_QUALITY: AirQualitySnapshot = {
   tierInfo: {
     tier: "unhealthy",
     label: "Unhealthy",
-    shortAdvice: "Everyone may experience health effects. Wear an N95 outdoors and keep windows sealed.",
+    shortAdvice:
+      "Everyone may experience health effects. Wear an N95 outdoors and keep windows sealed.",
     badgeClass: "bg-red-100 text-red-950 border-red-300",
     textClass: "text-red-900",
     borderClass: "border-red-300",

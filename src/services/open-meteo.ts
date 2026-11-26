@@ -12,6 +12,10 @@ import { logger } from "@/lib/logger";
 
 const GEOCODE_BASE_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const AIR_QUALITY_BASE_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const ALLOWED_UPSTREAM_HOSTS = new Set([
+  "geocoding-api.open-meteo.com",
+  "air-quality-api.open-meteo.com",
+]);
 const REQUEST_TIMEOUT_MS = 8000;
 
 export const geocodeCache = new TtlLruCache<Location[]>(200, 60 * 60 * 1000);
@@ -25,6 +29,10 @@ export class UpstreamServiceError extends Error {
 }
 
 async function fetchJsonWithTimeout(url: URL): Promise<unknown> {
+  if (!ALLOWED_UPSTREAM_HOSTS.has(url.hostname) || url.protocol !== "https:") {
+    throw new UpstreamServiceError("Blocked disallowed upstream host");
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 

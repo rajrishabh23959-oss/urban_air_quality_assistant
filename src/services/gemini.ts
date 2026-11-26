@@ -15,7 +15,24 @@ import { logger } from "@/lib/logger";
 import { sanitizeUserPrompt } from "@/lib/prompt-guard";
 
 const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_TIMEOUT_MS = 15_000;
 export const planCache = new TtlLruCache<ActionPlan>(150, 15 * 60 * 1000);
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Gemini request timed out")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
+  }
+}
 
 const PLAN_SYSTEM_INSTRUCTION = `You are BreatheWise, an expert urban air quality scientist, public health advisor, and sustainable living coach.
 Your task is to help families and communities navigate severe winter smog and urban air pollution.
@@ -80,10 +97,7 @@ function buildDeterministicFallbackPlan(
             "Pause outdoor morning assemblies and PE classes when US AQI exceeds 150.",
             "Enforce a strict no-idling zone at school drop-off gates and apartment basements.",
             "Replace dry sweeping of society courtyards with damp mopping or water-sprinkled cleaning.",
-            "Set up a shared carpool sheet for ${profile.communityHouseholds} households commuting along the same corridor.".replace(
-              "${profile.communityHouseholds}",
-              String(profile.communityHouseholds),
-            ),
+            `Set up a shared carpool sheet for ${profile.communityHouseholds} households commuting along the same corridor.`,
           ],
           collectiveImpactNote: `If ${profile.communityHouseholds} households adopt carpooling and zero-waste-burning today, the neighborhood avoids ~${(profile.communityHouseholds * 8.4).toFixed(0)} kg CO2e/week and cuts local street-level PM2.5 spikes.`,
         }
@@ -302,11 +316,14 @@ function stripMarkdownFences(raw: string): string {
 export async function generateActionPlan(
   airQuality: AirQualitySnapshot,
   profile: HouseholdProfile,
+  forceRefresh = false,
 ): Promise<ActionPlan> {
   const cacheKey = buildPlanCacheKey(airQuality, profile);
-  const cached = planCache.get(cacheKey);
-  if (cached) {
-    return cached;
+  if (!forceRefresh) {
+    const cached = planCache.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
   }
 
   const apiKey = getGeminiApiKey();
@@ -383,34 +400,46 @@ export async function generateActionPlan(
     },
   });
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: userPayload,
-    config: {
-      systemInstruction: PLAN_SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-      temperature: 0.4,
-    },
-  });
+  const response = await withTimeout(
+    ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: userPayload,
+      config: {
+        systemInstruction: PLAN_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        temperature: 0.4,
+      },
+    }),
+    GEMINI_TIMEOUT_MS,
+  );
 
   const rawText = response.text;
   if (!rawText) {
     throw new Error("Gemini returned an empty response for action plan");
   }
 
-  const parsedJson: unknown = JSON.parse(stripMarkdownFences(rawText));
-  const validated = ActionPlanSchema.parse({
-    ...(typeof parsedJson === "object" && parsedJson !== null ? parsedJson : {}),
-    generatedAt: new Date().toISOString(),
-    source: "gemini",
-  });
+  try {
+    const parsedJson: unknown = JSON.parse(stripMarkdownFences(rawText));
+    const validated = ActionPlanSchema.parse({
+      ...(typeof parsedJson === "object" && parsedJson !== null ? parsedJson : {}),
+      generatedAt: new Date().toISOString(),
+      source: "gemini",
+    });
 
-  planCache.set(cacheKey, validated);
-  logger.info("Generated Gemini action plan", {
-    city: airQuality.location.name,
-    mode: profile.mode,
-  });
-  return validated;
+    planCache.set(cacheKey, validated);
+    logger.info("Generated Gemini action plan", {
+      city: airQuality.location.name,
+      mode: profile.mode,
+    });
+    return validated;
+  } catch (error) {
+    logger.warn("Gemini action plan validation failed; using deterministic fallback", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    const fallback = buildDeterministicFallbackPlan(airQuality, profile);
+    planCache.set(cacheKey, fallback);
+    return fallback;
+  }
 }
 
 /**
@@ -437,15 +466,18 @@ export async function generateAssistantReply(req: AssistantRequest): Promise<Ass
     userQuestion: sanitizedMessage,
   });
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: contextPayload,
-    config: {
-      systemInstruction: ASSISTANT_SYSTEM_INSTRUCTION,
-      responseMimeType: "application/json",
-      temperature: 0.4,
-    },
-  });
+  const response = await withTimeout(
+    ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: contextPayload,
+      config: {
+        systemInstruction: ASSISTANT_SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        temperature: 0.4,
+      },
+    }),
+    GEMINI_TIMEOUT_MS,
+  );
 
   const rawText = response.text;
   if (!rawText) {

@@ -52,7 +52,19 @@ describe("BreatheWiseApp integration", () => {
   it("restores saved profile from localStorage and shows error alerts when APIs fail", async () => {
     window.localStorage.setItem(
       "breathewise_profile_v1",
-      JSON.stringify({ ...{ mode: "community", householdSize: 3, communityHouseholds: 100, vulnerableGroups: ["elderly"], commute: "wfh", homeType: "apartment", hasHepaPurifier: true, cookingFuel: "induction", ventilation: "sealed_ac" } }),
+      JSON.stringify({
+        ...{
+          mode: "community",
+          householdSize: 3,
+          communityHouseholds: 100,
+          vulnerableGroups: ["elderly"],
+          commute: "wfh",
+          homeType: "apartment",
+          hasHepaPurifier: true,
+          cookingFuel: "induction",
+          ventilation: "sealed_ac",
+        },
+      }),
     );
 
     vi.stubGlobal(

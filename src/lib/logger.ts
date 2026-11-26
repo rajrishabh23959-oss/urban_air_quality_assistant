@@ -39,8 +39,10 @@ function writeLog(level: LogLevel, message: string, context?: Record<string, unk
  * Structured application logger that avoids raw console statements.
  */
 export const logger = {
-  debug: (message: string, context?: Record<string, unknown>) => writeLog("debug", message, context),
+  debug: (message: string, context?: Record<string, unknown>) =>
+    writeLog("debug", message, context),
   info: (message: string, context?: Record<string, unknown>) => writeLog("info", message, context),
   warn: (message: string, context?: Record<string, unknown>) => writeLog("warn", message, context),
-  error: (message: string, context?: Record<string, unknown>) => writeLog("error", message, context),
+  error: (message: string, context?: Record<string, unknown>) =>
+    writeLog("error", message, context),
 };

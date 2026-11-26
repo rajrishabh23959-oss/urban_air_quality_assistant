@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import { GeocodeQuerySchema } from "@/types";
-import {
-  aqiRateLimiter,
-  buildRateLimitHeaders,
-  getClientIdentifier,
-} from "@/lib/rate-limit";
+import { aqiRateLimiter, buildRateLimitHeaders, getClientIdentifier } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 import { searchCities, UpstreamServiceError } from "@/services/open-meteo";
 

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  assessInversionRisk,
-  classifyUsAqi,
-  findSafeVentilationWindow,
-} from "@/lib/aqi";
+import { assessInversionRisk, classifyUsAqi, findSafeVentilationWindow } from "@/lib/aqi";
 import { MOCK_HOURLY_24H } from "@/test-fixtures/air-quality";
 
 describe("aqi domain helpers", () => {

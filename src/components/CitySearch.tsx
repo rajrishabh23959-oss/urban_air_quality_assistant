@@ -20,7 +20,24 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
   const [isSearching, setIsSearching] = useState(false);
   const inputId = useId();
   const listboxId = useId();
+  const errorId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutsideInteraction(event: MouseEvent | FocusEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setActiveIndex(-1);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideInteraction);
+    document.addEventListener("focusin", handleOutsideInteraction);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideInteraction);
+      document.removeEventListener("focusin", handleOutsideInteraction);
+    };
+  }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -133,9 +150,11 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
               id={inputId}
               type="text"
               role="combobox"
-              aria-expanded={isOpen}
+              aria-expanded={isOpen && results.length > 0}
               aria-controls={listboxId}
               aria-autocomplete="list"
+              aria-invalid={Boolean(searchError)}
+              aria-describedby={searchError ? errorId : undefined}
               aria-activedescendant={
                 activeIndex >= 0 ? `${listboxId}-opt-${activeIndex}` : undefined
               }
@@ -205,7 +224,7 @@ export function CitySearch({ selectedLocation, onSelectLocation, isLoading }: Ci
       )}
 
       {searchError && (
-        <p className="text-xs font-medium text-red-700" role="alert">
+        <p id={errorId} className="text-xs font-medium text-red-700" role="alert">
           {searchError}
         </p>
       )}

@@ -17,7 +17,7 @@ export default function GlobalError({
           <button
             type="button"
             onClick={reset}
-            className="mt-6 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white"
+            className="mt-6 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 focus-visible:ring-offset-2"
           >
             Reload application
           </button>

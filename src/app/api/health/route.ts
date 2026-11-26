@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
-import { isGeminiConfigured } from "@/lib/env";
+import { buildRateLimitHeaders, getClientIdentifier, healthRateLimiter } from "@/lib/rate-limit";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const clientId = getClientIdentifier(request);
+  const rateLimit = healthRateLimiter.check(clientId);
+  const rateHeaders = buildRateLimitHeaders(rateLimit);
+
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many health check requests." },
+      { status: 429, headers: rateHeaders },
+    );
+  }
+
   return NextResponse.json(
     {
       status: "ok",
-      geminiConfigured: isGeminiConfigured(),
       timestamp: new Date().toISOString(),
     },
-    { status: 200 },
+    { status: 200, headers: rateHeaders },
   );
 }

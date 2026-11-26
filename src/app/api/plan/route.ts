@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { PlanRequestSchema } from "@/types";
-import {
-  buildRateLimitHeaders,
-  genAiRateLimiter,
-  getClientIdentifier,
-} from "@/lib/rate-limit";
+import { buildRateLimitHeaders, genAiRateLimiter, getClientIdentifier } from "@/lib/rate-limit";
+import { readJsonWithLimit } from "@/lib/request-guard";
 import { logger } from "@/lib/logger";
 import { generateActionPlan } from "@/services/gemini";
+
+const MAX_PLAN_PAYLOAD_BYTES = 65_536;
 
 export async function POST(request: Request) {
   const clientId = getClientIdentifier(request);
@@ -20,17 +19,15 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
+  const jsonResult = await readJsonWithLimit(request, MAX_PLAN_PAYLOAD_BYTES);
+  if (!jsonResult.ok) {
     return NextResponse.json(
-      { error: "Malformed JSON request body." },
-      { status: 400, headers: rateHeaders },
+      { error: jsonResult.error },
+      { status: jsonResult.status, headers: rateHeaders },
     );
   }
 
-  const parsed = PlanRequestSchema.safeParse(body);
+  const parsed = PlanRequestSchema.safeParse(jsonResult.data);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid air quality or profile payload." },
@@ -39,7 +36,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const plan = await generateActionPlan(parsed.data.airQuality, parsed.data.profile);
+    const plan = await generateActionPlan(
+      parsed.data.airQuality,
+      parsed.data.profile,
+      parsed.data.forceRefresh ?? false,
+    );
     return NextResponse.json(plan, { status: 200, headers: rateHeaders });
   } catch (error) {
     logger.error("Plan generation failed", {

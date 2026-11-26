@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  AlertTriangle,
-  CheckCircle2,
-  CloudFog,
-  RefreshCw,
-  ShieldAlert,
-  Wind,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, CloudFog, RefreshCw, ShieldAlert, Wind } from "lucide-react";
 import type { AirQualitySnapshot, AqiTier } from "@/types";
 import { SmogChartLazy } from "./SmogChartLazy";
 
@@ -101,7 +94,10 @@ export function AirQualityDashboard({
           disabled={isLoading}
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 disabled:opacity-60"
         >
-          <RefreshCw aria-hidden="true" className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
+          <RefreshCw
+            aria-hidden="true"
+            className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`}
+          />
           <span>Refresh AQI</span>
         </button>
       </div>

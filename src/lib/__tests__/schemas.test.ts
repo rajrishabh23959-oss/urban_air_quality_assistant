@@ -12,9 +12,9 @@ describe("Zod schemas and prompt guard", () => {
   it("rejects out-of-range coordinates and unknown keys", () => {
     expect(AirQualityQuerySchema.safeParse({ lat: 95, lon: 77 }).success).toBe(false);
     expect(AirQualityQuerySchema.safeParse({ lat: 28, lon: 185 }).success).toBe(false);
-    expect(
-      HouseholdProfileSchema.safeParse({ ...MOCK_PROFILE, extraField: "bad" }).success,
-    ).toBe(false);
+    expect(HouseholdProfileSchema.safeParse({ ...MOCK_PROFILE, extraField: "bad" }).success).toBe(
+      false,
+    );
   });
 
   it("enforces geocode query bounds", () => {

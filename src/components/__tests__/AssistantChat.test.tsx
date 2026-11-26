@@ -6,19 +6,27 @@ import { AssistantChat } from "@/components/AssistantChat";
 import { MOCK_AIR_QUALITY, MOCK_PROFILE } from "@/test-fixtures/air-quality";
 
 describe("AssistantChat", () => {
-  it("submits user question and renders reply safely with zero axe violations", async () => {
+  it("submits user question, renders suggested follow-ups, and passes axe", async () => {
     const user = userEvent.setup();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           reply: "Keep windows closed until 12:00 PM.",
+          suggestedFollowUps: ["Should we run a HEPA filter tonight?"],
+          source: "fallback",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          reply: "Yes, run your purifier on medium overnight.",
           suggestedFollowUps: [],
           source: "fallback",
         }),
-      }),
-    );
+      });
+    vi.stubGlobal("fetch", fetchMock);
 
     const { container } = render(
       <AssistantChat airQuality={MOCK_AIR_QUALITY} profile={MOCK_PROFILE} />,
@@ -29,12 +37,17 @@ describe("AssistantChat", () => {
     await user.click(screen.getByRole("button", { name: /^Ask$/i }));
 
     expect(await screen.findByText(/Keep windows closed until 12:00 PM/i)).toBeInTheDocument();
+    const followUpBtn = screen.getByRole("button", {
+      name: /Should we run a HEPA filter tonight\?/i,
+    });
+    await user.click(followUpBtn);
+    expect(await screen.findByText(/run your purifier on medium/i)).toBeInTheDocument();
 
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
 
-  it("handles quick prompt click and API error alert", async () => {
+  it("handles quick prompt click and links API error alert to input", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
@@ -46,6 +59,10 @@ describe("AssistantChat", () => {
 
     render(<AssistantChat airQuality={MOCK_AIR_QUALITY} profile={MOCK_PROFILE} />);
     await user.click(screen.getByRole("button", { name: /Low-cost ways to protect/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Rate limit hit");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Rate limit hit");
+    const input = screen.getByLabelText(/Ask an air quality question/i);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", alert.id);
   });
 });

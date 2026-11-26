@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Wind } from "lucide-react";
 import { SMOG_HOTSPOT_PRESETS } from "@/lib/aqi";
 import { flattenPlanActions } from "@/lib/impact-calculator";
 import {
@@ -14,6 +13,8 @@ import {
 } from "@/types";
 import { ActionPlanView } from "./ActionPlanView";
 import { AirQualityDashboard } from "./AirQualityDashboard";
+import { AppFooter } from "./AppFooter";
+import { AppHeader } from "./AppHeader";
 import { AssistantChat } from "./AssistantChat";
 import { CitySearch } from "./CitySearch";
 import { ImpactSimulator } from "./ImpactSimulator";
@@ -24,6 +25,8 @@ const PROFILE_STORAGE_KEY = "breathewise_profile_v1";
 export function BreatheWiseApp() {
   const [location, setLocation] = useState<Location>(SMOG_HOTSPOT_PRESETS[0]!);
   const [profile, setProfile] = useState<HouseholdProfile>(DEFAULT_PROFILE);
+  const [isProfileHydrated, setIsProfileHydrated] = useState(false);
+
   const [airQuality, setAirQuality] = useState<AirQualitySnapshot | null>(null);
   const [aqiLoading, setAqiLoading] = useState<boolean>(true);
   const [aqiError, setAqiError] = useState<string | null>(null);
@@ -35,6 +38,7 @@ export function BreatheWiseApp() {
 
   const aqiAbortRef = useRef<AbortController | null>(null);
   const planAbortRef = useRef<AbortController | null>(null);
+  const hasLoadedInitialPlanRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -48,6 +52,8 @@ export function BreatheWiseApp() {
         }
       } catch {
         // Ignore malformed localStorage state
+      } finally {
+        setIsProfileHydrated(true);
       }
     }, 0);
     return () => clearTimeout(timer);
@@ -105,7 +111,11 @@ export function BreatheWiseApp() {
   }, []);
 
   const loadPlan = useCallback(
-    async (snapshot: AirQualitySnapshot, currentProfile: HouseholdProfile) => {
+    async (
+      snapshot: AirQualitySnapshot,
+      currentProfile: HouseholdProfile,
+      forceRefresh = false,
+    ) => {
       planAbortRef.current?.abort();
       const controller = new AbortController();
       planAbortRef.current = controller;
@@ -122,7 +132,11 @@ export function BreatheWiseApp() {
         const res = await fetch("/api/plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ airQuality: snapshot, profile: currentProfile }),
+          body: JSON.stringify({
+            airQuality: snapshot,
+            profile: currentProfile,
+            ...(forceRefresh ? { forceRefresh: true } : {}),
+          }),
           signal: controller.signal,
         });
         const data = (await res.json()) as ActionPlan & { error?: string };
@@ -130,7 +144,11 @@ export function BreatheWiseApp() {
           throw new Error(data.error ?? "Unable to generate action plan.");
         }
         setPlan(data);
-        const defaultChecked = new Set(flattenPlanActions(data).slice(0, 3).map((i) => i.id));
+        const defaultChecked = new Set(
+          flattenPlanActions(data)
+            .slice(0, 3)
+            .map((i) => i.id),
+        );
         setSelectedIds(defaultChecked);
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -155,19 +173,22 @@ export function BreatheWiseApp() {
   }, [location, loadAirQuality]);
 
   useEffect(() => {
-    if (!airQuality) {
+    if (!airQuality || !isProfileHydrated) {
       return;
     }
+    const delayMs = hasLoadedInitialPlanRef.current ? 350 : 0;
     const timer = setTimeout(() => {
+      hasLoadedInitialPlanRef.current = true;
       void loadPlan(airQuality, profile);
-    }, 0);
+    }, delayMs);
+
     return () => {
       clearTimeout(timer);
       planAbortRef.current?.abort();
     };
-  }, [airQuality, profile, loadPlan]);
+  }, [airQuality, profile, isProfileHydrated, loadPlan]);
 
-  function handleToggleAction(id: string) {
+  const handleToggleAction = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -177,65 +198,27 @@ export function BreatheWiseApp() {
       }
       return next;
     });
-  }
+  }, []);
 
-  function handleSelectAll() {
+  const handleSelectAll = useCallback(() => {
     if (!plan) {
       return;
     }
     setSelectedIds(new Set(flattenPlanActions(plan).map((item) => item.id)));
-  }
+  }, [plan]);
+
+  const handleClearAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-900 text-white">
-              <Wind aria-hidden="true" className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
-                BreatheWise
-              </h1>
-              <p className="text-xs text-slate-600">
-                GenAI Winter Smog &amp; Urban Air Quality Assistant
-              </p>
-            </div>
-          </div>
-
-          <nav aria-label="Section shortcuts" className="flex flex-wrap gap-3 text-xs font-semibold">
-            <a
-              href="#aqi-heading"
-              className="rounded-lg px-2.5 py-1.5 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
-            >
-              Live AQI
-            </a>
-            <a
-              href="#simulator-heading"
-              className="rounded-lg px-2.5 py-1.5 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
-            >
-              Impact Simulator
-            </a>
-            <a
-              href="#plan-heading"
-              className="rounded-lg px-2.5 py-1.5 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
-            >
-              Action Plan
-            </a>
-            <a
-              href="#assistant-heading"
-              className="rounded-lg px-2.5 py-1.5 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
-            >
-              AI Assistant
-            </a>
-          </nav>
-        </div>
-      </header>
+      <AppHeader />
 
       <main
         id="main-content"
-        className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-6 sm:px-6 lg:px-8"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-4 py-6 focus:outline-none sm:px-6 lg:px-8"
       >
         <section
           aria-label="City and location selector"
@@ -268,7 +251,7 @@ export function BreatheWiseApp() {
           currentPm25={airQuality?.current.pm25 ?? 50}
           profile={profile}
           onSelectAll={handleSelectAll}
-          onClearAll={() => setSelectedIds(new Set())}
+          onClearAll={handleClearAll}
         />
 
         <ActionPlanView
@@ -279,7 +262,7 @@ export function BreatheWiseApp() {
           onToggleAction={handleToggleAction}
           onRegenerate={() => {
             if (airQuality) {
-              void loadPlan(airQuality, profile);
+              void loadPlan(airQuality, profile, true);
             }
           }}
         />
@@ -287,11 +270,7 @@ export function BreatheWiseApp() {
         <AssistantChat airQuality={airQuality} profile={profile} />
       </main>
 
-      <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-600">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          BreatheWise • Live air quality data powered by Open-Meteo • Tailored guidance powered by Gemini 2.5 Flash
-        </div>
-      </footer>
+      <AppFooter />
     </div>
   );
 }

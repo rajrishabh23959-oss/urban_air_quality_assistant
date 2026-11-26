@@ -45,7 +45,8 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           Household &amp; Community Profile
         </h2>
         <p className="mt-1 text-xs text-slate-700">
-          Tailors your GenAI routines, indoor hacks, and impact scaling. Saved locally in your browser.
+          Tailors your GenAI routines, indoor hacks, and impact scaling. Saved locally in your
+          browser.
         </p>
       </div>
 
@@ -84,7 +85,28 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
         </div>
       </div>
 
-      {profile.mode === "community" && (
+      {profile.mode === "family" ? (
+        <div>
+          <label
+            htmlFor={`${baseId}-household-size`}
+            className="block text-xs font-semibold text-slate-800"
+          >
+            Household Size (Members)
+          </label>
+          <select
+            id={`${baseId}-household-size`}
+            value={profile.householdSize}
+            onChange={(e) => onChange({ ...profile, householdSize: Number(e.target.value) })}
+            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
+          >
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => (
+              <option key={count} value={count}>
+                {count} {count === 1 ? "member" : "members"}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
         <div>
           <label
             htmlFor={`${baseId}-community-size`}
@@ -95,9 +117,7 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
           <select
             id={`${baseId}-community-size`}
             value={profile.communityHouseholds}
-            onChange={(e) =>
-              onChange({ ...profile, communityHouseholds: Number(e.target.value) })
-            }
+            onChange={(e) => onChange({ ...profile, communityHouseholds: Number(e.target.value) })}
             className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           >
             <option value={25}>25 households (Small apartment block)</option>
@@ -135,7 +155,10 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor={`${baseId}-commute`} className="block text-xs font-semibold text-slate-800">
+          <label
+            htmlFor={`${baseId}-commute`}
+            className="block text-xs font-semibold text-slate-800"
+          >
             Daily Commute
           </label>
           <select
@@ -153,7 +176,10 @@ export function ProfileForm({ profile, onChange }: ProfileFormProps) {
         </div>
 
         <div>
-          <label htmlFor={`${baseId}-cooking`} className="block text-xs font-semibold text-slate-800">
+          <label
+            htmlFor={`${baseId}-cooking`}
+            className="block text-xs font-semibold text-slate-800"
+          >
             Cooking Fuel
           </label>
           <select

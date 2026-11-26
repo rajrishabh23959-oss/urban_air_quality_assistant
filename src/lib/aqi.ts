@@ -1,10 +1,4 @@
-import type {
-  AqiTierInfo,
-  HourlyPoint,
-  InversionRisk,
-  Location,
-  VentilationWindow,
-} from "@/types";
+import type { AqiTierInfo, HourlyPoint, InversionRisk, Location, VentilationWindow } from "@/types";
 
 /**
  * Curated winter smog hotspot cities for one-click selection.
@@ -70,7 +64,8 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
     return {
       tier: "good",
       label: "Good",
-      shortAdvice: "Air quality is satisfactory. Normal outdoor activities and ventilation are safe.",
+      shortAdvice:
+        "Air quality is satisfactory. Normal outdoor activities and ventilation are safe.",
       badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300",
       textClass: "text-emerald-800",
       borderClass: "border-emerald-300",
@@ -81,7 +76,8 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
     return {
       tier: "moderate",
       label: "Moderate",
-      shortAdvice: "Acceptable air quality; unusually sensitive individuals should limit prolonged exertion.",
+      shortAdvice:
+        "Acceptable air quality; unusually sensitive individuals should limit prolonged exertion.",
       badgeClass: "bg-amber-100 text-amber-950 border-amber-300",
       textClass: "text-amber-900",
       borderClass: "border-amber-300",
@@ -103,7 +99,8 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
     return {
       tier: "unhealthy",
       label: "Unhealthy",
-      shortAdvice: "Everyone may experience health effects. Wear an N95 outdoors and keep windows sealed.",
+      shortAdvice:
+        "Everyone may experience health effects. Wear an N95 outdoors and keep windows sealed.",
       badgeClass: "bg-red-100 text-red-950 border-red-300",
       textClass: "text-red-900",
       borderClass: "border-red-300",
@@ -114,7 +111,8 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
     return {
       tier: "very_unhealthy",
       label: "Very Unhealthy",
-      shortAdvice: "Health alert: avoid outdoor exercise, run indoor filtration, and use damp dust control.",
+      shortAdvice:
+        "Health alert: avoid outdoor exercise, run indoor filtration, and use damp dust control.",
       badgeClass: "bg-purple-100 text-purple-950 border-purple-300",
       textClass: "text-purple-900",
       borderClass: "border-purple-300",
@@ -124,7 +122,8 @@ export function classifyUsAqi(usAqi: number): AqiTierInfo {
   return {
     tier: "hazardous",
     label: "Hazardous",
-    shortAdvice: "Emergency smog conditions: stay indoors, seal drafts, and run continuous air filtration.",
+    shortAdvice:
+      "Emergency smog conditions: stay indoors, seal drafts, and run continuous air filtration.",
     badgeClass: "bg-rose-950 text-white border-rose-900",
     textClass: "text-rose-950",
     borderClass: "border-rose-900",

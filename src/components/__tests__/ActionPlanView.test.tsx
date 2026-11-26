@@ -47,6 +47,12 @@ describe("ActionPlanView", () => {
 
     await user.click(screen.getByRole("button", { name: /Copy WhatsApp/i }));
     expect(writeText).toHaveBeenCalledWith("Keep windows closed outside 12:00-13:00.");
+    expect(screen.getByRole("status")).toHaveTextContent("Community notice copied to clipboard");
+
+    // Simulate clipboard failure showing accessible alert
+    writeText.mockRejectedValueOnce(new Error("Clipboard denied"));
+    await user.click(screen.getByRole("button", { name: /Copied notice/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Unable to copy notice/i);
 
     await user.click(screen.getByRole("button", { name: /Refresh AI Plan/i }));
     expect(onRegenerate).toHaveBeenCalledTimes(1);

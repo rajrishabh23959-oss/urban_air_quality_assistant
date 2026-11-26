@@ -8,6 +8,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  suggestedFollowUps?: string[];
 }
 
 interface AssistantChatProps {
@@ -21,6 +22,7 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputId = useId();
+  const errorId = useId();
   const msgCounterRef = useRef(0);
 
   const city = airQuality?.location.name ?? "your city";
@@ -73,6 +75,7 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
           id: `a-${msgCounterRef.current}`,
           role: "assistant",
           content: data.reply,
+          suggestedFollowUps: data.suggestedFollowUps ?? [],
         },
       ]);
     } catch (err) {
@@ -86,6 +89,10 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
     e.preventDefault();
     void sendQuestion(input);
   }
+
+  const latestMessage = messages[messages.length - 1];
+  const followUps =
+    latestMessage?.role === "assistant" ? (latestMessage.suggestedFollowUps ?? []) : [];
 
   return (
     <section
@@ -144,8 +151,28 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
         )}
       </div>
 
+      {followUps.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-2"
+          aria-label="Suggested follow-up questions"
+        >
+          <span className="text-xs font-semibold text-slate-700">Follow-up:</span>
+          {followUps.map((followUp) => (
+            <button
+              key={followUp}
+              type="button"
+              disabled={!airQuality || isSending}
+              onClick={() => void sendQuestion(followUp)}
+              className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-left text-xs font-medium text-sky-950 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700 disabled:opacity-50"
+            >
+              {followUp}
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && (
-        <p className="text-xs font-medium text-red-700" role="alert">
+        <p id={errorId} className="text-xs font-medium text-red-700" role="alert">
           {error}
         </p>
       )}
@@ -162,6 +189,8 @@ export function AssistantChat({ airQuality, profile }: AssistantChatProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={!airQuality || isSending}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
             placeholder="Ask about masks, windows, DIY purifiers, or community notices..."
             className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-700"
           />

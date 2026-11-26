@@ -27,9 +27,7 @@ export function ImpactCard({
   return (
     <article
       className={`flex flex-col justify-between rounded-2xl border p-4 transition-colors ${
-        isSelected
-          ? "border-emerald-500 bg-emerald-50/40 shadow-sm"
-          : "border-slate-200 bg-white"
+        isSelected ? "border-emerald-500 bg-emerald-50/40 shadow-sm" : "border-slate-200 bg-white"
       }`}
     >
       <div className="space-y-2.5">

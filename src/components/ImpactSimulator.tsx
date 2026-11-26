@@ -45,7 +45,8 @@ export function ImpactSimulator({
             Interactive Direct-Impact Simulator
           </h2>
           <p className="mt-0.5 text-xs text-slate-700">
-            Check off routines, IAQ hacks, and swaps below to calculate your personal and neighborhood impact ({summary.selectedCount}/{summary.totalCount} active).
+            Check off routines, IAQ hacks, and swaps below to calculate your personal and
+            neighborhood impact ({summary.selectedCount}/{summary.totalCount} active).
           </p>
         </div>
 
@@ -77,7 +78,8 @@ export function ImpactSimulator({
             {summary.exposureReductionPercent}%
           </p>
           <p className="mt-1 text-xs text-emerald-900">
-            ~{summary.personalPm25ReductionUgPerDay} µg/day PM2.5 avoided
+            ~{summary.personalPm25ReductionUgPerDay} µg/day PM2.5 avoided{" "}
+            {profile.mode === "family" ? `(for ${profile.householdSize}-member home)` : ""}
           </p>
         </div>
 
@@ -89,9 +91,7 @@ export function ImpactSimulator({
           <p className="mt-1 text-3xl font-extrabold text-amber-950">
             {summary.equivalentCigarettesAvoidedPerDay}
           </p>
-          <p className="mt-1 text-xs text-amber-950">
-            equivalent cigarettes avoided/day
-          </p>
+          <p className="mt-1 text-xs text-amber-950">equivalent cigarettes avoided/day</p>
         </div>
 
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
@@ -124,7 +124,8 @@ export function ImpactSimulator({
       </div>
 
       <p className="text-xs text-slate-600">
-        Methodology: Exposure reduction compares summed µg/day PM2.5 avoided against a 12 m³/day adult inhalation baseline (capped at 85% realistic indoor/outdoor saturation).
+        Methodology: Exposure reduction compares summed µg/day PM2.5 avoided against a 12 m³/day
+        adult inhalation baseline (capped at 85% realistic indoor/outdoor saturation).
       </p>
     </section>
   );

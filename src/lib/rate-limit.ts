@@ -105,3 +105,4 @@ export function getClientIdentifier(request: Request): string {
 
 export const aqiRateLimiter = new SlidingWindowRateLimiter(30, 60 * 1000);
 export const genAiRateLimiter = new SlidingWindowRateLimiter(15, 60 * 1000);
+export const healthRateLimiter = new SlidingWindowRateLimiter(60, 60 * 1000);

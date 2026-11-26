@@ -84,7 +84,9 @@ export function calculateCumulativeImpact(
 
   const households = Math.max(1, profile.communityHouseholds);
   const communityWeeklyCo2eSavedKg = Number((weeklyCo2eSavedKg * households).toFixed(1));
-  const communityMonthlyPm25AvoidedKg = Number(((monthlyPm25AvoidedG * households) / 1000).toFixed(2));
+  const communityMonthlyPm25AvoidedKg = Number(
+    ((monthlyPm25AvoidedG * households) / 1000).toFixed(2),
+  );
 
   return {
     selectedCount: selectedItems.length,

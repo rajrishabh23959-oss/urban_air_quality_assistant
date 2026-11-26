@@ -48,9 +48,9 @@ describe("/api/plan", () => {
     expect(data.communityAdvisory?.headline).toContain("New Delhi");
   });
 
-  it("uses Gemini SDK and validates structured JSON when GEMINI_API_KEY is present", async () => {
+  it("uses Gemini SDK, supports forceRefresh cache bypass, and falls back gracefully on invalid JSON", async () => {
     process.env.GEMINI_API_KEY = "test-gemini-key";
-    mockGenerateContent.mockResolvedValueOnce({
+    mockGenerateContent.mockResolvedValue({
       text: JSON.stringify({
         summary: MOCK_PLAN.summary,
         routines: MOCK_PLAN.routines,
@@ -59,17 +59,61 @@ describe("/api/plan", () => {
       }),
     });
 
-    const req = new Request("http://localhost:3000/api/plan", {
+    const req1 = new Request("http://localhost:3000/api/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ airQuality: MOCK_AIR_QUALITY, profile: MOCK_PROFILE }),
     });
-
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { source: string };
-    expect(data.source).toBe("gemini");
+    const res1 = await POST(req1);
+    expect(res1.status).toBe(200);
+    expect(((await res1.json()) as { source: string }).source).toBe("gemini");
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+
+    // Cached second call
+    const req2 = new Request("http://localhost:3000/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ airQuality: MOCK_AIR_QUALITY, profile: MOCK_PROFILE }),
+    });
+    await POST(req2);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+
+    // forceRefresh bypasses cache
+    const req3 = new Request("http://localhost:3000/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        airQuality: MOCK_AIR_QUALITY,
+        profile: MOCK_PROFILE,
+        forceRefresh: true,
+      }),
+    });
+    await POST(req3);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+
+    // Non-conforming JSON falls back gracefully instead of 502
+    mockGenerateContent.mockResolvedValueOnce({ text: "{not-valid-json" });
+    const req4 = new Request("http://localhost:3000/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        airQuality: MOCK_AIR_QUALITY,
+        profile: MOCK_PROFILE,
+        forceRefresh: true,
+      }),
+    });
+    const res4 = await POST(req4);
+    expect(res4.status).toBe(200);
+    expect(((await res4.json()) as { source: string }).source).toBe("fallback");
+  });
+
+  it("returns 413 when payload exceeds 64 KB", async () => {
+    const req = new Request("http://localhost:3000/api/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ padding: "x".repeat(70_000) }),
+    });
+    expect((await POST(req)).status).toBe(413);
   });
 
   it("enforces rate limits with 429 status", async () => {

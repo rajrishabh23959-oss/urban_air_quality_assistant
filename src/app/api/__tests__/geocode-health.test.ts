@@ -1,22 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getHealth } from "@/app/api/health/route";
 import { GET as getGeocode } from "@/app/api/geocode/route";
-import { aqiRateLimiter } from "@/lib/rate-limit";
+import { aqiRateLimiter, healthRateLimiter } from "@/lib/rate-limit";
 import { geocodeCache } from "@/services/open-meteo";
 
 describe("/api/health and /api/geocode", () => {
   beforeEach(() => {
     aqiRateLimiter.reset();
+    healthRateLimiter.reset();
     geocodeCache.clear();
     vi.restoreAllMocks();
   });
 
-  it("returns 200 ok from /api/health", async () => {
-    const res = await getHealth();
+  it("returns 200 ok from /api/health and enforces rate limit", async () => {
+    const res = await getHealth(new Request("http://localhost:3000/api/health"));
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { status: string; geminiConfigured: boolean };
+    const body = (await res.json()) as { status: string; timestamp: string };
     expect(body.status).toBe("ok");
-    expect(typeof body.geminiConfigured).toBe("boolean");
+    expect(typeof body.timestamp).toBe("string");
+
+    for (let i = 0; i < 60; i += 1) {
+      await getHealth(
+        new Request("http://localhost:3000/api/health", {
+          headers: { "x-real-ip": "10.20.30.40" },
+        }),
+      );
+    }
+    const limited = await getHealth(
+      new Request("http://localhost:3000/api/health", {
+        headers: { "x-real-ip": "10.20.30.40" },
+      }),
+    );
+    expect(limited.status).toBe(429);
   });
 
   it("searches cities via /api/geocode and caches results", async () => {

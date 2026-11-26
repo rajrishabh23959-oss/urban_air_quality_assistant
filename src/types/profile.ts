@@ -27,11 +27,7 @@ export type HomeType = z.infer<typeof HomeTypeSchema>;
 export const CookingFuelSchema = z.enum(["lpg", "induction", "biomass_other"]);
 export type CookingFuel = z.infer<typeof CookingFuelSchema>;
 
-export const VentilationTypeSchema = z.enum([
-  "cross_ventilation",
-  "exhaust_only",
-  "sealed_ac",
-]);
+export const VentilationTypeSchema = z.enum(["cross_ventilation", "exhaust_only", "sealed_ac"]);
 export type VentilationType = z.infer<typeof VentilationTypeSchema>;
 
 export const HouseholdProfileSchema = z

@@ -63,7 +63,9 @@ describe("CitySearch", () => {
 
     Object.defineProperty(navigator, "geolocation", {
       value: {
-        getCurrentPosition: (success: (pos: { coords: { latitude: number; longitude: number } }) => void) => {
+        getCurrentPosition: (
+          success: (pos: { coords: { latitude: number; longitude: number } }) => void,
+        ) => {
           success({ coords: { latitude: 28.5, longitude: 77.1 } });
         },
       },
@@ -106,10 +108,28 @@ describe("CitySearch", () => {
 
     const input = screen.getByRole("combobox");
     await user.type(input, "Beijing");
-    expect(await screen.findByRole("alert")).toHaveTextContent(/temporarily unavailable/i);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/temporarily unavailable/i);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-describedby", alert.id);
 
     await user.keyboard("{Escape}");
     await user.clear(input);
+
+    // Clicking outside closes open listbox
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ results: [SMOG_HOTSPOT_PRESETS[1]] }),
+      }),
+    );
+    await user.type(input, "Luck");
+    await waitFor(() => expect(screen.getByRole("listbox")).toBeInTheDocument(), {
+      timeout: 1500,
+    });
+    await user.click(document.body);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Use my location/i }));
     expect(screen.getByRole("alert")).toHaveTextContent(/permission denied/i);
